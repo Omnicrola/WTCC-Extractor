@@ -1,0 +1,3 @@
+[submodule "audfprint"]
+	path = audfprint
+	url = https://github.com/dpwe/audfprint.git

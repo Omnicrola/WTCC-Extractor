@@ -1,0 +1,13 @@
+{
+	"episode_title" : "Example Title!",
+	"release_date" : "2024-02-01",
+	"submitted_by" : "A persons name",
+	"answer" : "Example Answer",
+	"clues" : [
+		"Clue number one",
+		"Clue number two",
+		"Clue number three",
+		"Clue number four",
+		"Clue number five",
+	]
+}

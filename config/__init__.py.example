@@ -1,0 +1,55 @@
+"""
+Shared configuration for the WTCC extraction pipeline.
+
+SETUP:
+    Copy this file to config/__init__.py and fill in your values:
+        cp config/__init__.py.example config/__init__.py
+
+    Alternatively, sensitive values can be set as environment variables
+    instead of editing this file directly (see comments below).
+"""
+
+import os
+
+# Project root — parent of this config/ directory
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# --- Paths ---
+SOURCE_AUDIO_DIR = os.path.join(BASE_DIR, "source_audio")
+SEGMENTS_DIR     = os.path.join(BASE_DIR, "segments")
+TRANSCRIPTS_DIR  = os.path.join(BASE_DIR, "transcripts")
+
+JINGLE_WAV     = os.path.join(BASE_DIR, "resources", "wtcc_intro_fingerprint.wav")
+FINGERPRINT_DB = os.path.join(BASE_DIR, "resources", "wtcc_fingerprint.db")
+SQLITE_DB      = os.path.join(BASE_DIR, "resources", "wtcc.db")
+
+# Path to audfprint.py — clone from https://github.com/dpwe/audfprint
+# and set this to the full path of audfprint.py
+AUDFPRINT_PY = os.path.join(BASE_DIR, "audfprint", "audfprint.py")
+
+# --- Audio extraction ---
+# How many seconds after the jingle to extract (game is unlikely >30 min)
+SEGMENT_WINDOW_SECONDS = 1800  # 30 minutes
+
+# --- WhisperX ---
+WHISPER_MODEL        = "large-v2"
+WHISPER_DEVICE       = "cuda"     # "cuda" or "cpu"
+WHISPER_COMPUTE_TYPE = "float16"  # "float16" (GPU) or "int8" (CPU)
+WHISPER_BATCH_SIZE   = 16
+
+# HuggingFace token — required for pyannote speaker diarization.
+# 1. Create a token at https://huggingface.co/settings/tokens
+# 2. Accept the pyannote model terms at:
+#    https://huggingface.co/pyannote/speaker-diarization-3.1
+# 3. Either paste your token below or set the HF_TOKEN environment variable.
+HF_TOKEN = os.environ.get("HF_TOKEN", "YOUR_HF_TOKEN_HERE")
+
+# --- Ollama / LLM ---
+# Requires Ollama running locally: https://ollama.com
+# Pull the model first: ollama pull qwen2.5:14b
+OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_HOST  = "http://localhost:11434"
+
+# --- audfprint fingerprinting ---
+AUDFPRINT_DENSITY = 100
+AUDFPRINT_SHIFTS  = 4

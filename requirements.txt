@@ -1,0 +1,29 @@
+# WTCC Extraction Pipeline Dependencies
+
+# Audio transcription with speaker diarization
+whisperx
+torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu126
+
+# LLM structured extraction
+# Requires separate installation of ollama
+# in Windows Powershell : 
+#       irm https://ollama.com/install.ps1 | iex
+#       ollama run qwen2.5:14b
+ollama
+pydantic>=2.0
+
+# ffmpeg must be installed separately and on PATH:
+#   Windows: winget install ffmpeg   OR   choco install ffmpeg
+#   macOS:   brew install ffmpeg
+#   Linux:   sudo apt install ffmpeg
+
+# audfprint must be cloned separately (not on PyPI):
+#   git clone https://github.com/dpwe/audfprint
+#   pip install -r audfprint/requirements.txt
+#   Then set AUDFPRINT_PY in config.py
+
+# audfprint dependencies (install these regardless):
+numpy
+scipy
+librosa
+matplotlib
