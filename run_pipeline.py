@@ -1,7 +1,7 @@
 """
 WTCC Extraction Pipeline — Orchestrator
 Processes one or more podcast episodes end-to-end:
-  1. Find WTCC jingle via audfprint fingerprinting
+  1. Find WTCC game intro via audfprint fingerprinting
   2. Extract game segment audio with ffmpeg
   3. Transcribe with WhisperX + diarization
   4. Extract structured game data with Qwen 2.5 14B (Ollama)
@@ -26,7 +26,7 @@ import sys
 import json
 from datetime import datetime, timezone
 
-from config import SOURCE_AUDIO_DIR, SQLITE_DB
+from config import SOURCE_AUDIO_DIR, SQLITE_DB, SEGMENTS_DIR, TRANSCRIPTS_DIR
 
 SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts")
 
@@ -93,18 +93,19 @@ def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: 
                 segments = transcript_data.get("segments", [])
                 raw_transcript = " ".join(s.get("text", "") for s in segments)
 
-        cur = conn.execute(
-            """INSERT INTO game_rounds (episode_id, answer, submitted_by, raw_json, raw_transcript)
-               VALUES (?, ?, ?, ?, ?)""",
-            (episode_id, game_data.answer, game_data.submitted_by, raw_json, raw_transcript)
-        )
-        round_id = cur.lastrowid
-
-        for i, clue in enumerate(game_data.clues):
-            conn.execute(
-                "INSERT INTO clues (round_id, clue_order, clue_text) VALUES (?, ?, ?)",
-                (round_id, i + 1, clue)
+        for round_data in game_data.rounds:
+            cur = conn.execute(
+                """INSERT INTO game_rounds (episode_id, answer, submitted_by, raw_json, raw_transcript)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (episode_id, round_data.answer, round_data.submitted_by, raw_json, raw_transcript)
             )
+            round_id = cur.lastrowid
+
+            for i, clue in enumerate(round_data.clues):
+                conn.execute(
+                    "INSERT INTO clues (round_id, clue_order, clue_text) VALUES (?, ?, ?)",
+                    (round_id, i + 1, clue)
+                )
 
         # Update episode metadata from extracted data
         conn.execute(
@@ -134,36 +135,46 @@ def _load_script(name: str, module_alias: str):
     return mod
 
 
-def step_find_jingle(audio_file: str) -> float:
-    mod = _load_script("03_find_jingle.py", "find_jingle")
-    ts = mod.find_jingle_timestamp(audio_file)
+def step_find_game_intro(audio_file: str) -> float:
+    mod = _load_script("01_find_game_intro.py", "find_game_intro")
+    ts = mod.find_game_intro_timestamp(audio_file)
     if ts is None:
-        raise RuntimeError(f"Jingle not found in: {audio_file}")
+        raise RuntimeError(f"Game intro not found in: {audio_file}")
     return ts
 
 
 def step_extract_segment(audio_file: str, timestamp: float) -> str:
-    mod = _load_script("04_extract_segment.py", "extract_segment")
+    mod = _load_script("02_extract_segment.py", "extract_segment")
     return mod.extract_segment(audio_file, timestamp)
 
 
 def step_transcribe(segment_wav: str) -> str:
-    mod = _load_script("05_transcribe.py", "transcribe")
+    mod = _load_script("03_transcribe.py", "transcribe")
     return mod.transcribe_segment(segment_wav)
 
 
 def step_extract_game_data(transcript_json: str):
     # Register 05_transcribe under a stable name so 06 can find it
-    transcribe_mod = _load_script("05_transcribe.py", "transcribe")
+    transcribe_mod = _load_script("03_transcribe.py", "transcribe")
     sys.modules["transcribe_mod"] = transcribe_mod
 
-    mod = _load_script("06_extract_game_data.py", "extract_game_data")
+    mod = _load_script("04_extract_game_data.py", "extract_game_data")
     return mod.extract_game_data(transcript_json)
 
 
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
+
+def _expected_segment_path(audio_file: str) -> str:
+    base = os.path.splitext(os.path.basename(audio_file))[0]
+    return os.path.join(SEGMENTS_DIR, f"{base}_segment.wav")
+
+
+def _expected_transcript_path(segment_file: str) -> str:
+    base = os.path.splitext(os.path.basename(segment_file))[0]
+    return os.path.join(TRANSCRIPTS_DIR, f"{base}_transcript.json")
+
 
 def process_episode(audio_file: str, force: bool = False):
     abs_path = os.path.abspath(audio_file)
@@ -181,27 +192,41 @@ def process_episode(audio_file: str, force: bool = False):
     episode_id = upsert_episode(abs_path)
 
     try:
-        update_episode(episode_id, status="finding_jingle")
-        print("\n[Step 3] Finding jingle timestamp...")
-        timestamp = step_find_jingle(abs_path)
-        print(f"  Jingle found at {timestamp:.2f}s ({timestamp/60:.1f} min)")
-        update_episode(episode_id, jingle_timestamp=timestamp)
+        expected_segment = _expected_segment_path(abs_path)
+        if not force and os.path.exists(expected_segment):
+            print(f"\n[Step 1+2] Segment already exists, skipping.")
+            print(f"  {os.path.basename(expected_segment)}")
+            segment_file = expected_segment
+            update_episode(episode_id, segment_file=segment_file)
+        else:
+            update_episode(episode_id, status="finding_game_intro")
+            print("\n[Step 1] Finding game intro timestamp...")
+            timestamp = step_find_game_intro(abs_path)
+            print(f"  Game intro found at {timestamp:.2f}s ({timestamp/60:.1f} min)")
+            update_episode(episode_id, game_intro_timestamp=timestamp)
 
-        update_episode(episode_id, status="extracting_segment")
-        print("\n[Step 4] Extracting audio segment...")
-        segment_file = step_extract_segment(abs_path, timestamp)
-        update_episode(episode_id, segment_file=segment_file)
+            update_episode(episode_id, status="extracting_segment")
+            print("\n[Step 2] Extracting audio segment...")
+            segment_file = step_extract_segment(abs_path, timestamp)
+            update_episode(episode_id, segment_file=segment_file)
 
-        update_episode(episode_id, status="transcribing")
-        print("\n[Step 5] Transcribing with WhisperX...")
-        transcript_file = step_transcribe(segment_file)
-        update_episode(episode_id, transcript_file=transcript_file)
+        expected_transcript = _expected_transcript_path(segment_file)
+        if not force and os.path.exists(expected_transcript):
+            print(f"\n[Step 3] Transcript already exists, skipping.")
+            print(f"  {os.path.basename(expected_transcript)}")
+            transcript_file = expected_transcript
+            update_episode(episode_id, transcript_file=transcript_file)
+        else:
+            update_episode(episode_id, status="transcribing")
+            print("\n[Step 3] Transcribing with WhisperX...")
+            transcript_file = step_transcribe(segment_file)
+            update_episode(episode_id, transcript_file=transcript_file)
 
         update_episode(episode_id, status="extracting_data")
-        print("\n[Step 6] Extracting game data with Qwen 2.5 14B...")
+        print("\n[Step 4] Extracting game data with Qwen 2.5 14B...")
         game_data, raw_json = step_extract_game_data(transcript_file)
 
-        print("\n[Step 7] Storing results in database...")
+        print("\n[Step 5] Storing results in database...")
         store_game_data(episode_id, game_data, raw_json, transcript_file)
         update_episode(
             episode_id,
@@ -210,8 +235,9 @@ def process_episode(audio_file: str, force: bool = False):
         )
 
         print(f"\nDone: {basename}")
-        print(f"  Answer : {game_data.answer}")
-        print(f"  Clues  : {len(game_data.clues)}")
+        print(f"  Rounds : {len(game_data.rounds)}")
+        for i, r in enumerate(game_data.rounds, 1):
+            print(f"  Round {i}: {r.answer} ({len(r.clues)} clues)")
 
     except Exception as e:
         update_episode(episode_id, status=f"error: {e}")
@@ -228,7 +254,7 @@ def main():
 
     if not os.path.exists(SQLITE_DB):
         print(f"Database not found: {SQLITE_DB}")
-        print("Run scripts/01_setup_db.py first.")
+        print("Run scripts/setup_db.py first.")
         sys.exit(1)
 
     if args.all:

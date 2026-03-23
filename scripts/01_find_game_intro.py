@@ -1,9 +1,9 @@
 """
-Step 3: Use audfprint to locate the WTCC jingle within a podcast episode.
-Returns the timestamp (in seconds) where the jingle begins.
+Step 1: Use audfprint to locate the WTCC game intro within a podcast episode.
+Returns the timestamp (in seconds) where the game intro begins.
 
 Usage:
-    python scripts/03_find_jingle.py <episode_audio_file>
+    python scripts/01_find_game_intro.py <episode_audio_file>
 """
 
 import sys, os
@@ -14,7 +14,7 @@ import re
 from config import AUDFPRINT_PY, FINGERPRINT_DB
 
 
-def find_jingle_timestamp(audio_file: str) -> float | None:
+def find_game_intro_timestamp(audio_file: str) -> float | None:
     """
     Run audfprint match against the episode audio.
     Returns the start time in seconds, or None if not found.
@@ -25,7 +25,7 @@ def find_jingle_timestamp(audio_file: str) -> float | None:
     if not os.path.exists(FINGERPRINT_DB):
         raise FileNotFoundError(
             f"Fingerprint database not found: {FINGERPRINT_DB}\n"
-            "Run scripts/02_create_fingerprint.py first."
+            "Run scripts/setup_fingerprint.py first."
         )
 
     cmd = [
@@ -37,7 +37,7 @@ def find_jingle_timestamp(audio_file: str) -> float | None:
         audio_file,
     ]
 
-    print(f"Scanning for jingle in: {os.path.basename(audio_file)}")
+    print(f"Scanning for game intro in: {os.path.basename(audio_file)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = result.stdout + result.stderr
 
@@ -87,7 +87,7 @@ def _parse_timestamp(output: str, audio_file: str) -> float | None:
         print("WARNING: Match found but could not parse timestamp from output.")
         print("Please inspect the output above and update _parse_timestamp() accordingly.")
     else:
-        print("No match found for jingle in this episode.")
+        print("No match found for game intro in this episode.")
 
     return None
 
@@ -97,9 +97,9 @@ if __name__ == "__main__":
         print(f"Usage: python {sys.argv[0]} <episode_audio_file>")
         sys.exit(1)
 
-    ts = find_jingle_timestamp(sys.argv[1])
+    ts = find_game_intro_timestamp(sys.argv[1])
     if ts is not None:
-        print(f"\nJingle found at: {ts:.2f} seconds ({ts/60:.1f} minutes)")
+        print(f"\nGame intro found at: {ts:.2f} seconds ({ts/60:.1f} minutes)")
     else:
-        print("\nJingle not found.")
+        print("\nGame intro not found.")
         sys.exit(1)

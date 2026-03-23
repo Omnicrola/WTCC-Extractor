@@ -1,9 +1,9 @@
 """
-Step 1 (one-time): Initialize the SQLite database schema.
+Setup (one-time): Initialize the SQLite database schema.
 Run once before processing any episodes.
 
 Usage:
-    python scripts/01_setup_db.py
+    python scripts/setup_db.py
 """
 
 import sys, os
@@ -25,7 +25,7 @@ def setup_database():
             audio_file       TEXT    UNIQUE NOT NULL,
             episode_title    TEXT,
             release_date     TEXT,
-            jingle_timestamp REAL,
+            game_intro_timestamp REAL,
             segment_file     TEXT,
             transcript_file  TEXT,
             processed_at     TEXT,

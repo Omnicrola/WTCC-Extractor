@@ -1,9 +1,9 @@
 """
-Step 4: Extract the game segment from the full episode using ffmpeg.
-Cuts from the jingle timestamp for SEGMENT_WINDOW_SECONDS.
+Step 2: Extract the game segment from the full episode using ffmpeg.
+Cuts from the game intro timestamp for SEGMENT_WINDOW_SECONDS.
 
 Usage:
-    python scripts/04_extract_segment.py <episode_audio_file> <jingle_timestamp_seconds>
+    python scripts/02_extract_segment.py <episode_audio_file> <game_intro_timestamp_seconds>
 """
 
 import sys, os

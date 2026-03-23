@@ -19,16 +19,16 @@ SOURCE_AUDIO_DIR = os.path.join(BASE_DIR, "source_audio")
 SEGMENTS_DIR     = os.path.join(BASE_DIR, "segments")
 TRANSCRIPTS_DIR  = os.path.join(BASE_DIR, "transcripts")
 
-JINGLE_WAV     = os.path.join(BASE_DIR, "resources", "wtcc_intro_fingerprint.wav")
+GAME_INTRO_WAV = os.path.join(BASE_DIR, "resources", "wtcc_intro_fingerprint.wav")
 FINGERPRINT_DB = os.path.join(BASE_DIR, "resources", "wtcc_fingerprint.db")
-SQLITE_DB      = os.path.join(BASE_DIR, "resources", "wtcc.db")
+SQLITE_DB      = os.path.join(BASE_DIR, "output", "wtcc.db")
 
 # Path to audfprint.py — clone from https://github.com/dpwe/audfprint
 # and set this to the full path of audfprint.py
 AUDFPRINT_PY = os.path.join(BASE_DIR, "audfprint", "audfprint.py")
 
 # --- Audio extraction ---
-# How many seconds after the jingle to extract (game is unlikely >30 min)
+# How many seconds after the game intro to extract (game is unlikely >30 min)
 SEGMENT_WINDOW_SECONDS = 1800  # 30 minutes
 
 # --- WhisperX ---
@@ -36,6 +36,14 @@ WHISPER_MODEL        = "large-v2"
 WHISPER_DEVICE       = "cuda"     # "cuda" or "cpu"
 WHISPER_COMPUTE_TYPE = "float16"  # "float16" (GPU) or "int8" (CPU)
 WHISPER_BATCH_SIZE   = 16
+
+# --- Speaker identification (optional) ---
+# Drop named .wav clips into this folder to enable automatic speaker labelling.
+# Filename format:  Name_anything.wav  (everything before the first '_' becomes the label)
+# Multiple clips per person are averaged into a single reference embedding.
+# Set to None (or leave the folder empty) to skip and keep generic SPEAKER_XX labels.
+SPEAKER_PROFILES_DIR        = os.path.join(BASE_DIR, "resources", "speaker_profiles")
+SPEAKER_SIMILARITY_THRESHOLD = 0.75  # cosine similarity [0-1]; below this keeps SPEAKER_XX
 
 # HuggingFace token — required for pyannote speaker diarization.
 # 1. Create a token at https://huggingface.co/settings/tokens

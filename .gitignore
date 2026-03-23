@@ -21,5 +21,8 @@ segments/
 transcripts/
 
 # Database files
-resources/wtcc.db
+output/wtcc.db
 resources/wtcc_fingerprint.db
+
+# Speaker profile audio clips (personal/identifying audio)
+resources/speaker_profiles/
