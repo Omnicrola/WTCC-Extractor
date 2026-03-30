@@ -37,6 +37,9 @@ WHISPER_DEVICE       = "cuda"     # "cuda" or "cpu"
 WHISPER_COMPUTE_TYPE = "float16"  # "float16" (GPU) or "int8" (CPU)
 WHISPER_BATCH_SIZE   = 16
 
+# Unknown speaker clips are saved here by the identify_speakers.py utility
+UNKNOWN_SPEAKERS_DIR = os.path.join(BASE_DIR, "output", "unknown_speakers")
+
 # --- Speaker identification (optional) ---
 # Drop named .wav clips into this folder to enable automatic speaker labelling.
 # Filename format:  Name_anything.wav  (everything before the first '_' becomes the label)
@@ -52,11 +55,12 @@ SPEAKER_SIMILARITY_THRESHOLD = 0.75  # cosine similarity [0-1]; below this keeps
 # 3. Either paste your token below or set the HF_TOKEN environment variable.
 HF_TOKEN = os.environ.get("HF_TOKEN", "YOUR_HF_TOKEN_HERE")
 
-# --- Ollama / LLM ---
-# Requires Ollama running locally: https://ollama.com
-# Pull the model first: ollama pull qwen2.5:14b
-OLLAMA_MODEL = "qwen2.5:14b"
-OLLAMA_HOST  = "http://localhost:11434"
+# --- LM Studio / LLM ---
+# 1. Download LM Studio: https://lmstudio.ai
+# 2. Load a model (Qwen3 8B+ recommended for best results)
+# 3. Go to the "Local Server" tab, set context length to at least 40960, and click Start Server
+LMSTUDIO_BASE_URL = "http://localhost:1234/v1"
+LMSTUDIO_API_KEY  = "lm-studio"   # LM Studio ignores this but the client requires it
 
 # --- audfprint fingerprinting ---
 AUDFPRINT_DENSITY = 100

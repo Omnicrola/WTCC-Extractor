@@ -26,3 +26,6 @@ resources/wtcc_fingerprint.db
 
 # Speaker profile audio clips (personal/identifying audio)
 resources/speaker_profiles/
+
+# Unknown speaker clips extracted by identify_speakers.py
+output/unknown_speakers/

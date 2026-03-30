@@ -7,12 +7,10 @@ torch==2.8.0+cu126
 torchvision==0.23.0+cu126
 torchaudio==2.8.0+cu126
 
-# LLM structured extraction
-# Requires separate installation of ollama
-# in Windows Powershell : 
-#       irm https://ollama.com/install.ps1 | iex
-#       ollama run qwen2.5:14b
-ollama
+# LLM structured extraction via LM Studio local server
+# Requires LM Studio running with a model loaded and the local server started.
+# Download LM Studio: https://lmstudio.ai
+openai
 pydantic>=2.0
 
 # ffmpeg must be installed separately and on PATH:

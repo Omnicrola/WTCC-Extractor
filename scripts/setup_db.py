@@ -21,15 +21,17 @@ def setup_database():
 
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS episodes (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            audio_file       TEXT    UNIQUE NOT NULL,
-            episode_title    TEXT,
-            release_date     TEXT,
-            game_intro_timestamp REAL,
-            segment_file     TEXT,
-            transcript_file  TEXT,
-            processed_at     TEXT,
-            status           TEXT    NOT NULL DEFAULT 'pending'
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            audio_file              TEXT    UNIQUE NOT NULL,
+            episode_title           TEXT,
+            release_date            TEXT,
+            game_intro_timestamp    REAL,
+            segment_file            TEXT,
+            transcript_file         TEXT,
+            processed_at            TEXT,
+            status                  TEXT    NOT NULL DEFAULT 'pending',
+            all_speakers_identified INTEGER NOT NULL DEFAULT 0,
+            game_intro_found        INTEGER NOT NULL DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS game_rounds (
@@ -48,6 +50,17 @@ def setup_database():
             clue_text  TEXT    NOT NULL
         );
     """)
+
+    # Migrate existing databases that predate newer columns
+    for migration in [
+        "ALTER TABLE episodes ADD COLUMN all_speakers_identified INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE episodes ADD COLUMN game_intro_found        INTEGER NOT NULL DEFAULT 1",
+    ]:
+        try:
+            cur.execute(migration)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
     conn.commit()
     conn.close()

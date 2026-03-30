@@ -39,14 +39,16 @@ def get_conn():
     return sqlite3.connect(SQLITE_DB)
 
 
-def episode_status(audio_file: str) -> str | None:
-    """Return the processing status of an episode, or None if not yet recorded."""
+def episode_status(audio_file: str) -> tuple[str | None, bool]:
+    """Return (status, game_intro_found) for an episode, or (None, True) if not yet recorded."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT status FROM episodes WHERE audio_file = ?",
+            "SELECT status, game_intro_found FROM episodes WHERE audio_file = ?",
             (os.path.abspath(audio_file),)
         ).fetchone()
-    return row[0] if row else None
+    if row:
+        return row[0], bool(row[1])
+    return None, True
 
 
 def upsert_episode(audio_file: str) -> int:
@@ -135,12 +137,9 @@ def _load_script(name: str, module_alias: str):
     return mod
 
 
-def step_find_game_intro(audio_file: str) -> float:
+def step_find_game_intro(audio_file: str) -> float | None:
     mod = _load_script("01_find_game_intro.py", "find_game_intro")
-    ts = mod.find_game_intro_timestamp(audio_file)
-    if ts is None:
-        raise RuntimeError(f"Game intro not found in: {audio_file}")
-    return ts
+    return mod.find_game_intro_timestamp(audio_file)
 
 
 def step_extract_segment(audio_file: str, timestamp: float) -> str:
@@ -176,7 +175,7 @@ def _expected_transcript_path(segment_file: str) -> str:
     return os.path.join(TRANSCRIPTS_DIR, f"{base}_transcript.json")
 
 
-def process_episode(audio_file: str, force: bool = False):
+def process_episode(audio_file: str, force: bool = False, skip_extraction: bool = False):
     abs_path = os.path.abspath(audio_file)
     basename = os.path.basename(abs_path)
 
@@ -184,16 +183,24 @@ def process_episode(audio_file: str, force: bool = False):
     print(f"Processing: {basename}")
     print(f"{'='*60}")
 
-    status = episode_status(abs_path)
-    if status == "done" and not force:
-        print(f"  Already processed (status=done). Use --force to reprocess.")
-        return
+    status, game_intro_found = episode_status(abs_path)
+    if not force:
+        if status == "done":
+            print(f"  Already processed (status=done). Use --force to reprocess.")
+            return
+        if not game_intro_found:
+            print(f"  Game intro not found on previous run — skipping. Use --force to retry.")
+            return
 
     episode_id = upsert_episode(abs_path)
 
     try:
         expected_segment = _expected_segment_path(abs_path)
-        if not force and os.path.exists(expected_segment):
+        if skip_extraction:
+            print(f"\n[Step 1+2] Skipping extraction (--skip-extraction) — using full audio file.")
+            segment_file = abs_path
+            update_episode(episode_id, segment_file=segment_file)
+        elif not force and os.path.exists(expected_segment):
             print(f"\n[Step 1+2] Segment already exists, skipping.")
             print(f"  {os.path.basename(expected_segment)}")
             segment_file = expected_segment
@@ -202,6 +209,15 @@ def process_episode(audio_file: str, force: bool = False):
             update_episode(episode_id, status="finding_game_intro")
             print("\n[Step 1] Finding game intro timestamp...")
             timestamp = step_find_game_intro(abs_path)
+            if timestamp is None:
+                update_episode(
+                    episode_id,
+                    status="done",
+                    game_intro_found=0,
+                    processed_at=datetime.now(timezone.utc).isoformat(),
+                )
+                print(f"  Game intro not found — episode marked as done (game_intro_found=0).")
+                return
             print(f"  Game intro found at {timestamp:.2f}s ({timestamp/60:.1f} min)")
             update_episode(episode_id, game_intro_timestamp=timestamp)
 
@@ -223,7 +239,7 @@ def process_episode(audio_file: str, force: bool = False):
             update_episode(episode_id, transcript_file=transcript_file)
 
         update_episode(episode_id, status="extracting_data")
-        print("\n[Step 4] Extracting game data with Qwen 2.5 14B...")
+        print("\n[Step 4] Extracting game data via LM Studio...")
         game_data, raw_json = step_extract_game_data(transcript_file)
 
         print("\n[Step 5] Storing results in database...")
@@ -250,7 +266,13 @@ def main():
     parser.add_argument("files", nargs="*", help="Episode audio file(s) to process")
     parser.add_argument("--all", action="store_true", help="Process all audio files in source_audio/")
     parser.add_argument("--force", action="store_true", help="Re-process even if already done")
+    parser.add_argument("--skip-extraction", action="store_true",
+                        help="Skip game intro detection and segment extraction (single file only); "
+                             "requires the segment WAV to already exist in segments/")
     args = parser.parse_args()
+
+    if args.skip_extraction and args.all:
+        parser.error("--skip-extraction cannot be used with --all")
 
     if not os.path.exists(SQLITE_DB):
         print(f"Database not found: {SQLITE_DB}")
@@ -277,9 +299,9 @@ def main():
         sys.exit(1)
 
     errors = []
-    for f in sorted(files):
+    for f in sorted(files, key=lambda p: os.path.basename(p).lower()):
         try:
-            process_episode(f, force=args.force)
+            process_episode(f, force=args.force, skip_extraction=args.skip_extraction)
         except Exception as e:
             errors.append((f, str(e)))
 

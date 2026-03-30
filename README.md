@@ -22,7 +22,7 @@ Episode audio (.mp3 / .wav)
 [Step 3] WhisperX + pyannote — transcribe with speaker diarization
         │
         ▼
-[Step 4] Qwen 2.5 14B (Ollama) — extract clues, answer, submitter
+[Step 4] LM Studio (local model) — extract clues, answer, submitter per round
         │
         ▼
      SQLite DB (episodes / game_rounds / clues tables)
@@ -36,7 +36,7 @@ Install these tools before setting up the Python environment:
 |------|---------|
 | **Python 3.10+** | [python.org](https://www.python.org/) |
 | **ffmpeg** | `winget install ffmpeg` / `brew install ffmpeg` / `sudo apt install ffmpeg` |
-| **Ollama** | Windows PowerShell: `irm https://ollama.com/install.ps1 \| iex` — then `ollama pull qwen2.5:14b` |
+| **LM Studio** | [lmstudio.ai](https://lmstudio.ai) — load a model (Qwen3 8B+ recommended), start the local server, set context length to at least 40960 |
 | **CUDA-capable GPU** | Recommended. CPU fallback is supported but slow. |
 
 ## Installation
@@ -180,8 +180,8 @@ All settings live in `config/__init__.py`:
 | `WHISPER_DEVICE` | `cuda` | `"cuda"` or `"cpu"` |
 | `WHISPER_COMPUTE_TYPE` | `float16` | `"float16"` (GPU) or `"int8"` (CPU) |
 | `HF_TOKEN` | env var | HuggingFace token for pyannote diarization and speaker embedding |
-| `OLLAMA_MODEL` | `qwen2.5:14b` | Ollama model for game data extraction |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama API endpoint |
+| `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | LM Studio local server endpoint |
+| `LMSTUDIO_API_KEY` | `lm-studio` | Placeholder — LM Studio ignores this value |
 | `SPEAKER_PROFILES_DIR` | `resources/speaker_profiles/` | Folder of named audio clips for speaker identification; leave empty to skip |
 | `SPEAKER_SIMILARITY_THRESHOLD` | `0.75` | Minimum cosine similarity to accept a speaker match; unmatched speakers keep their `SPEAKER_XX` label |
 
