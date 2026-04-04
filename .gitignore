@@ -24,6 +24,9 @@ transcripts/
 output/wtcc.db
 resources/wtcc_fingerprint.db
 
+# Log files
+/output/logs/
+
 # Speaker profile audio clips (personal/identifying audio)
 resources/speaker_profiles/
 

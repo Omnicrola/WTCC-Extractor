@@ -10,7 +10,10 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import subprocess
-from config import SEGMENTS_DIR, SEGMENT_WINDOW_SECONDS
+from config import SEGMENTS_DIR, SEGMENT_WINDOW_SECONDS, LOGS_DIR
+from log_utils import setup_logger
+
+logger = setup_logger("02_extract_segment", LOGS_DIR)
 
 
 def extract_segment(audio_file: str, start_seconds: float, duration: int = SEGMENT_WINDOW_SECONDS) -> str:
@@ -34,21 +37,21 @@ def extract_segment(audio_file: str, start_seconds: float, duration: int = SEGME
         out_file,
     ]
 
-    print(f"Extracting segment: {start_seconds:.1f}s + {duration//60} min from {os.path.basename(audio_file)}")
+    logger.info(f"Extracting segment: {start_seconds:.1f}s + {duration//60} min from {os.path.basename(audio_file)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
-        print("ffmpeg error:\n", result.stderr)
+        logger.error(f"ffmpeg error:\n{result.stderr}")
         sys.exit(1)
 
-    print(f"Segment saved: {out_file}")
+    logger.info(f"Segment saved: {out_file}")
     return out_file
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print(f"Usage: python {sys.argv[0]} <episode_audio_file> <jingle_timestamp_seconds>")
+        logger.info(f"Usage: python {sys.argv[0]} <episode_audio_file> <jingle_timestamp_seconds>")
         sys.exit(1)
 
     out = extract_segment(sys.argv[1], float(sys.argv[2]))
-    print(f"Output: {out}")
+    logger.info(f"Output: {out}")

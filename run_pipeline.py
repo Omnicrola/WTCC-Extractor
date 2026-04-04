@@ -24,9 +24,16 @@ import os
 import sqlite3
 import sys
 import json
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
-from config import SOURCE_AUDIO_DIR, SQLITE_DB, SEGMENTS_DIR, TRANSCRIPTS_DIR
+# Add scripts/ to sys.path so log_utils (and importlib-loaded scripts) can find it
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
+
+from config import SOURCE_AUDIO_DIR, SQLITE_DB, SEGMENTS_DIR, TRANSCRIPTS_DIR, LOGS_DIR
+from log_utils import setup_logger
+
+logger = setup_logger("run_pipeline", LOGS_DIR)
 
 SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts")
 
@@ -35,8 +42,18 @@ SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"
 # Database helpers
 # ---------------------------------------------------------------------------
 
+@contextmanager
 def get_conn():
-    return sqlite3.connect(SQLITE_DB)
+    """Open a SQLite connection, commit on success, rollback on error, always close."""
+    conn = sqlite3.connect(SQLITE_DB)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def episode_status(audio_file: str) -> tuple[str | None, bool]:
@@ -59,7 +76,6 @@ def upsert_episode(audio_file: str) -> int:
             "INSERT OR IGNORE INTO episodes (audio_file, status) VALUES (?, 'pending')",
             (abs_path,)
         )
-        conn.commit()
         row = conn.execute(
             "SELECT id FROM episodes WHERE audio_file = ?", (abs_path,)
         ).fetchone()
@@ -73,7 +89,6 @@ def update_episode(episode_id: int, **kwargs):
     values = list(kwargs.values()) + [episode_id]
     with get_conn() as conn:
         conn.execute(f"UPDATE episodes SET {sets} WHERE id = ?", values)
-        conn.commit()
 
 
 def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: str):
@@ -117,8 +132,6 @@ def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: 
                WHERE id = ?""",
             (game_data.episode_title, game_data.release_date, episode_id)
         )
-
-        conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -179,17 +192,14 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
     abs_path = os.path.abspath(audio_file)
     basename = os.path.basename(abs_path)
 
-    print(f"\n{'='*60}")
-    print(f"Processing: {basename}")
-    print(f"{'='*60}")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Processing: {basename}")
+    logger.info(f"{'='*60}")
 
     status, game_intro_found = episode_status(abs_path)
     if not force:
         if status == "done":
-            print(f"  Already processed (status=done). Use --force to reprocess.")
-            return
-        if not game_intro_found:
-            print(f"  Game intro not found on previous run — skipping. Use --force to retry.")
+            logger.info(f"  Already processed (status=done). Use --force to reprocess.")
             return
 
     episode_id = upsert_episode(abs_path)
@@ -197,52 +207,49 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
     try:
         expected_segment = _expected_segment_path(abs_path)
         if skip_extraction:
-            print(f"\n[Step 1+2] Skipping extraction (--skip-extraction) — using full audio file.")
+            logger.info(f"\n[Step 1+2] Skipping extraction (--skip-extraction) — using full audio file.")
             segment_file = abs_path
             update_episode(episode_id, segment_file=segment_file)
         elif not force and os.path.exists(expected_segment):
-            print(f"\n[Step 1+2] Segment already exists, skipping.")
-            print(f"  {os.path.basename(expected_segment)}")
+            logger.info(f"\n[Step 1+2] Segment already exists, skipping.")
+            logger.info(f"  {os.path.basename(expected_segment)}")
             segment_file = expected_segment
             update_episode(episode_id, segment_file=segment_file)
         else:
             update_episode(episode_id, status="finding_game_intro")
-            print("\n[Step 1] Finding game intro timestamp...")
+            logger.info("\n[Step 1] Finding game intro timestamp...")
             timestamp = step_find_game_intro(abs_path)
             if timestamp is None:
-                update_episode(
-                    episode_id,
-                    status="done",
-                    game_intro_found=0,
-                    processed_at=datetime.now(timezone.utc).isoformat(),
-                )
-                print(f"  Game intro not found — episode marked as done (game_intro_found=0).")
-                return
-            print(f"  Game intro found at {timestamp:.2f}s ({timestamp/60:.1f} min)")
-            update_episode(episode_id, game_intro_timestamp=timestamp)
+                logger.info(f"  Game intro not found — transcribing full episode.")
+                update_episode(episode_id, game_intro_found=0)
+                segment_file = abs_path
+                update_episode(episode_id, segment_file=segment_file)
+            else:
+                logger.info(f"  Game intro found at {timestamp:.2f}s ({timestamp/60:.1f} min)")
+                update_episode(episode_id, game_intro_timestamp=timestamp)
 
-            update_episode(episode_id, status="extracting_segment")
-            print("\n[Step 2] Extracting audio segment...")
-            segment_file = step_extract_segment(abs_path, timestamp)
-            update_episode(episode_id, segment_file=segment_file)
+                update_episode(episode_id, status="extracting_segment")
+                logger.info("\n[Step 2] Extracting audio segment...")
+                segment_file = step_extract_segment(abs_path, timestamp)
+                update_episode(episode_id, segment_file=segment_file)
 
         expected_transcript = _expected_transcript_path(segment_file)
         if not force and os.path.exists(expected_transcript):
-            print(f"\n[Step 3] Transcript already exists, skipping.")
-            print(f"  {os.path.basename(expected_transcript)}")
+            logger.info(f"\n[Step 3] Transcript already exists, skipping.")
+            logger.info(f"  {os.path.basename(expected_transcript)}")
             transcript_file = expected_transcript
             update_episode(episode_id, transcript_file=transcript_file)
         else:
             update_episode(episode_id, status="transcribing")
-            print("\n[Step 3] Transcribing with WhisperX...")
+            logger.info("\n[Step 3] Transcribing with WhisperX...")
             transcript_file = step_transcribe(segment_file)
             update_episode(episode_id, transcript_file=transcript_file)
 
         update_episode(episode_id, status="extracting_data")
-        print("\n[Step 4] Extracting game data via LM Studio...")
+        logger.info("\n[Step 4] Extracting game data via LM Studio...")
         game_data, raw_json = step_extract_game_data(transcript_file)
 
-        print("\n[Step 5] Storing results in database...")
+        logger.info("\n[Step 5] Storing results in database...")
         store_game_data(episode_id, game_data, raw_json, transcript_file)
         update_episode(
             episode_id,
@@ -250,14 +257,14 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
             processed_at=datetime.now(timezone.utc).isoformat(),
         )
 
-        print(f"\nDone: {basename}")
-        print(f"  Rounds : {len(game_data.rounds)}")
+        logger.info(f"\nDone: {basename}")
+        logger.info(f"  Rounds : {len(game_data.rounds)}")
         for i, r in enumerate(game_data.rounds, 1):
-            print(f"  Round {i}: {r.answer} ({len(r.clues)} clues)")
+            logger.info(f"  Round {i}: {r.answer} ({len(r.clues)} clues)")
 
     except Exception as e:
         update_episode(episode_id, status=f"error: {e}")
-        print(f"\nERROR processing {basename}: {e}")
+        logger.error(f"\nERROR processing {basename}: {e}")
         raise
 
 
@@ -275,8 +282,8 @@ def main():
         parser.error("--skip-extraction cannot be used with --all")
 
     if not os.path.exists(SQLITE_DB):
-        print(f"Database not found: {SQLITE_DB}")
-        print("Run scripts/setup_db.py first.")
+        logger.error(f"Database not found: {SQLITE_DB}")
+        logger.error("Run scripts/setup_db.py first.")
         sys.exit(1)
 
     if args.all:
@@ -290,7 +297,7 @@ def main():
         for p in patterns:
             files.extend(glob.glob(p))
         if not files:
-            print(f"No audio files found in {SOURCE_AUDIO_DIR}")
+            logger.error(f"No audio files found in {SOURCE_AUDIO_DIR}")
             sys.exit(1)
     elif args.files:
         files = args.files
@@ -305,12 +312,12 @@ def main():
         except Exception as e:
             errors.append((f, str(e)))
 
-    print(f"\n{'='*60}")
-    print(f"Pipeline complete: {len(files) - len(errors)}/{len(files)} succeeded")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Pipeline complete: {len(files) - len(errors)}/{len(files)} succeeded")
     if errors:
-        print("Errors:")
+        logger.warning("Errors:")
         for f, e in errors:
-            print(f"  {os.path.basename(f)}: {e}")
+            logger.warning(f"  {os.path.basename(f)}: {e}")
 
 
 if __name__ == "__main__":

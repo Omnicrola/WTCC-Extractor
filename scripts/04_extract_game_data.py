@@ -19,7 +19,10 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import List
 from pydantic import BaseModel, Field
-from config import LMSTUDIO_BASE_URL, LMSTUDIO_API_KEY, SQLITE_DB, SOURCE_AUDIO_DIR
+from config import LMSTUDIO_BASE_URL, LMSTUDIO_API_KEY, SQLITE_DB, SOURCE_AUDIO_DIR, LOGS_DIR
+from log_utils import setup_logger
+
+logger = setup_logger("04_extract_game_data", LOGS_DIR)
 
 
 # --- Pydantic schema ---
@@ -195,7 +198,7 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
         raise ValueError("Transcript is empty — nothing to extract.")
 
     chunks = _chunk_plain_text(plain_text)
-    print(f"  Transcript: {len(plain_text):,} chars, {len(chunks)} chunk(s)")
+    logger.info(f"  Transcript: {len(plain_text):,} chars, {len(chunks)} chunk(s)")
 
     from openai import OpenAI
     client = OpenAI(base_url=LMSTUDIO_BASE_URL, api_key=LMSTUDIO_API_KEY, timeout=300)
@@ -205,11 +208,11 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
     if not loaded_models:
         raise RuntimeError("No model is loaded in LM Studio. Load a model and start the server first.")
     model_id = loaded_models[0].id
-    print(f"  Using model: {model_id}")
+    logger.info(f"  Using model: {model_id}")
 
     all_rounds: list[WTCCRound] = []
     for i, chunk in enumerate(chunks, 1):
-        print(f"  Chunk {i}/{len(chunks)} ({len(chunk):,} chars)...")
+        logger.info(f"  Chunk {i}/{len(chunks)} ({len(chunk):,} chars)...")
         user_message = (
             f"{FEW_SHOT_EXAMPLE}\n\n"
             f"Now extract from this transcript:\n\n"
@@ -233,10 +236,10 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
         )
         chunk_json = response.choices[0].message.content
         if not chunk_json or not chunk_json.strip():
-            print(f"    → WARNING: empty response from model (finish_reason={response.choices[0].finish_reason!r}), skipping chunk {i}")
+            logger.warning(f"    → Empty response from model (finish_reason={response.choices[0].finish_reason!r}), skipping chunk {i}")
             continue
         chunk_rounds = WTCCRoundsOnly.model_validate_json(chunk_json)
-        print(f"    → {len(chunk_rounds.rounds)} round(s) found")
+        logger.info(f"    → {len(chunk_rounds.rounds)} round(s) found")
         all_rounds.extend(chunk_rounds.rounds)
 
     merged = _merge_rounds(all_rounds)
@@ -250,10 +253,10 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
         rounds=rounds_data.rounds,
     )
 
-    print(f"  Episode title : {episode_title}")
-    print(f"  Rounds found  : {len(game_data.rounds)}")
+    logger.info(f"  Episode title : {episode_title}")
+    logger.info(f"  Rounds found  : {len(game_data.rounds)}")
     for i, r in enumerate(game_data.rounds, 1):
-        print(f"  Round {i}: answer={r.answer!r}, submitted_by={r.submitted_by or '(unknown)'!r}, clues={len(r.clues)}")
+        logger.info(f"  Round {i}: answer={r.answer!r}, submitted_by={r.submitted_by or '(unknown)'!r}, clues={len(r.clues)}")
 
     return game_data, raw_json
 
@@ -262,7 +265,7 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
     """Upsert the episode and store extracted rounds in the database."""
     audio_file = _find_audio_file(transcript_path)
     if audio_file is None:
-        print("WARNING: Could not locate source audio file — storing transcript path as key.")
+        logger.warning("Could not locate source audio file — storing transcript path as key.")
         audio_file = os.path.abspath(transcript_path)
     else:
         audio_file = os.path.abspath(audio_file)
@@ -320,23 +323,23 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
         )
         conn.commit()
 
-    print(f"  Saved to database: {len(game_data.rounds)} round(s) for episode_id={episode_id}")
+    logger.info(f"  Saved to database: {len(game_data.rounds)} round(s) for episode_id={episode_id}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(f"Usage: python {sys.argv[0]} <transcript_json_file>")
+        logger.info(f"Usage: python {sys.argv[0]} <transcript_json_file>")
         sys.exit(1)
 
     transcript_path = sys.argv[1]
     game_data, raw_json = extract_game_data(transcript_path)
 
-    print(f"\n--- Extracted Game Data ({len(game_data.rounds)} round(s)) ---")
-    print(json.dumps(game_data.model_dump(), indent=2))
+    logger.info(f"\n--- Extracted Game Data ({len(game_data.rounds)} round(s)) ---")
+    logger.info(json.dumps(game_data.model_dump(), indent=2))
 
     if os.path.exists(SQLITE_DB):
-        print("\nSaving to database...")
+        logger.info("\nSaving to database...")
         _save_to_db(transcript_path, game_data, raw_json)
     else:
-        print(f"\nDatabase not found at {SQLITE_DB} — skipping save.")
-        print("Run scripts/setup_db.py first if you want results stored.")
+        logger.warning(f"Database not found at {SQLITE_DB} — skipping save.")
+        logger.warning("Run scripts/setup_db.py first if you want results stored.")

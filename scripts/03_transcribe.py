@@ -28,7 +28,11 @@ from config import (
     HF_TOKEN,
     SPEAKER_PROFILES_DIR,
     SPEAKER_SIMILARITY_THRESHOLD,
+    LOGS_DIR,
 )
+from log_utils import setup_logger
+
+logger = setup_logger("03_transcribe", LOGS_DIR)
 
 
 def _resolve_device(requested: str) -> tuple[str, str]:
@@ -37,9 +41,9 @@ def _resolve_device(requested: str) -> tuple[str, str]:
     but not available in the current PyTorch build.
     """
     if requested == "cuda" and not torch.cuda.is_available():
-        print("WARNING: CUDA requested but not available — falling back to CPU.")
-        print("  Install a CUDA-enabled PyTorch build to use GPU acceleration:")
-        print("  https://pytorch.org/get-started/locally/")
+        logger.warning("CUDA requested but not available — falling back to CPU.")
+        logger.warning("  Install a CUDA-enabled PyTorch build to use GPU acceleration:")
+        logger.warning("  https://pytorch.org/get-started/locally/")
         return "cpu", "int8"
     return requested, WHISPER_COMPUTE_TYPE
 
@@ -62,19 +66,26 @@ def _build_speaker_profiles(profiles_dir: str, inference) -> dict[str, np.ndarra
         name = fname.split("_")[0]
         groups[name].append(os.path.join(profiles_dir, fname))
 
+    MIN_SAMPLES = 8000  # ~0.5s at 16kHz — minimum for pyannote embedding model
     profiles: dict[str, np.ndarray] = {}
     for name, paths in groups.items():
         embeddings = []
         for path in paths:
             import whisperx
             clip = whisperx.load_audio(path)
+            if len(clip) < MIN_SAMPLES:
+                logger.warning(f"  Skipping profile clip {os.path.basename(path)!r} — too short ({len(clip)} samples)")
+                continue
             waveform = torch.from_numpy(clip[None])
             emb = np.array(
                 inference({"waveform": waveform, "sample_rate": _WHISPER_SAMPLE_RATE})
             ).flatten()
             embeddings.append(emb)
+        if not embeddings:
+            logger.warning(f"  No valid clips for profile {name!r} — skipping")
+            continue
         profiles[name] = np.mean(embeddings, axis=0)
-        print(f"  Loaded profile: {name!r} ({len(paths)} clip(s))")
+        logger.info(f"  Loaded profile: {name!r} ({len(embeddings)} clip(s))")
 
     return profiles
 
@@ -110,6 +121,12 @@ def _identify_speakers(
             continue
 
         combined = np.concatenate(chunks)
+        MIN_SAMPLES = 8000  # ~0.5s at 16kHz — minimum for pyannote embedding model
+        if len(combined) < MIN_SAMPLES:
+            label_to_name[label] = label
+            logger.info(f"  {label} → kept as-is (audio too short: {len(combined)} samples)")
+            continue
+
         waveform = torch.from_numpy(combined[None])  # (1, samples)
         emb = np.array(
             inference({"waveform": waveform, "sample_rate": _WHISPER_SAMPLE_RATE})
@@ -124,10 +141,10 @@ def _identify_speakers(
 
         if best_sim >= threshold:
             label_to_name[label] = best_name
-            print(f"  {label} → {best_name!r} (similarity {best_sim:.3f})")
+            logger.info(f"  {label} → {best_name!r} (similarity {best_sim:.3f})")
         else:
             label_to_name[label] = label
-            print(f"  {label} → kept as-is (best similarity {best_sim:.3f} < {threshold})")
+            logger.info(f"  {label} → kept as-is (best similarity {best_sim:.3f} < {threshold})")
 
     return label_to_name
 
@@ -153,8 +170,8 @@ def transcribe_segment(segment_wav: str) -> str:
         raise FileNotFoundError(f"Segment file not found: {segment_wav}")
 
     if HF_TOKEN == "YOUR_HF_TOKEN_HERE":
-        print("WARNING: HF_TOKEN is not set. Diarization will fail.")
-        print("Set it in config/__init__.py or: export HF_TOKEN=hf_...")
+        logger.warning("HF_TOKEN is not set. Diarization will fail.")
+        logger.warning("Set it in config/__init__.py or: export HF_TOKEN=hf_...")
 
     device, compute_type = _resolve_device(WHISPER_DEVICE)
 
@@ -163,20 +180,20 @@ def transcribe_segment(segment_wav: str) -> str:
     base = os.path.splitext(os.path.basename(segment_wav))[0]
     out_file = os.path.join(TRANSCRIPTS_DIR, f"{base}_transcript.json")
 
-    print(f"Loading Whisper model: {WHISPER_MODEL} on {device} ({compute_type})")
+    logger.info(f"Loading Whisper model: {WHISPER_MODEL} on {device} ({compute_type})")
     model = whisperx.load_model(
         WHISPER_MODEL,
         device,
         compute_type=compute_type,
     )
 
-    print(f"Transcribing: {os.path.basename(segment_wav)}")
+    logger.info(f"Transcribing: {os.path.basename(segment_wav)}")
     audio = whisperx.load_audio(segment_wav)
     result = model.transcribe(audio, batch_size=WHISPER_BATCH_SIZE)
-    print(f"  Detected language: {result.get('language', 'unknown')}")
+    logger.info(f"  Detected language: {result.get('language', 'unknown')}")
 
     # Word-level alignment
-    print("Running forced alignment...")
+    logger.info("Running forced alignment...")
     model_a, metadata = whisperx.load_align_model(
         language_code=result["language"],
         device=device,
@@ -187,7 +204,7 @@ def transcribe_segment(segment_wav: str) -> str:
     )
 
     # Speaker diarization
-    print("Running speaker diarization...")
+    logger.info("Running speaker diarization...")
     diarize_model = whisperx.diarize.DiarizationPipeline(
         token=HF_TOKEN,
         device=device,
@@ -198,7 +215,7 @@ def transcribe_segment(segment_wav: str) -> str:
     # Speaker identification — remap SPEAKER_XX to real names if profiles exist
     profiles_dir = SPEAKER_PROFILES_DIR
     if profiles_dir and os.path.isdir(profiles_dir) and os.listdir(profiles_dir):
-        print("Loading speaker profiles...")
+        logger.info("Loading speaker profiles...")
         from pyannote.audio import Model, Inference
         emb_model = Model.from_pretrained(
             "pyannote/embedding",
@@ -207,7 +224,7 @@ def transcribe_segment(segment_wav: str) -> str:
         inference = Inference(emb_model, window="whole")
         profiles = _build_speaker_profiles(profiles_dir, inference)
         if profiles:
-            print("Identifying speakers...")
+            logger.info("Identifying speakers...")
             label_to_name = _identify_speakers(
                 diarize_segments, audio, inference, profiles,
                 threshold=SPEAKER_SIMILARITY_THRESHOLD,
@@ -218,7 +235,7 @@ def transcribe_segment(segment_wav: str) -> str:
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
-    print(f"Transcript saved: {out_file}")
+    logger.info(f"Transcript saved: {out_file}")
     return out_file
 
 
@@ -247,14 +264,14 @@ def build_plain_text(transcript_json_path: str) -> str:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(f"Usage: python {sys.argv[0]} <segment_wav_file>")
+        logger.info(f"Usage: python {sys.argv[0]} <segment_wav_file>")
         sys.exit(1)
 
     path = transcribe_segment(sys.argv[1])
-    print(f"\nTranscript: {path}")
+    logger.info(f"\nTranscript: {path}")
 
     # Preview first 20 lines
     plain = build_plain_text(path)
     preview = "\n".join(plain.split("\n")[:20])
-    print("\n--- Preview ---")
-    print(preview)
+    logger.info("\n--- Preview ---")
+    logger.info(preview)

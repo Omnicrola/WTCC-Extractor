@@ -22,6 +22,7 @@ TRANSCRIPTS_DIR  = os.path.join(BASE_DIR, "transcripts")
 GAME_INTRO_WAV = os.path.join(BASE_DIR, "resources", "wtcc_intro_fingerprint.wav")
 FINGERPRINT_DB = os.path.join(BASE_DIR, "resources", "wtcc_fingerprint.db")
 SQLITE_DB      = os.path.join(BASE_DIR, "output", "wtcc.db")
+LOGS_DIR       = os.path.join(BASE_DIR, "output", "logs")
 
 # Path to audfprint.py — clone from https://github.com/dpwe/audfprint
 # and set this to the full path of audfprint.py

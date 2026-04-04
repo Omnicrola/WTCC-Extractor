@@ -11,7 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import subprocess
 import re
-from config import AUDFPRINT_PY, FINGERPRINT_DB
+from config import AUDFPRINT_PY, FINGERPRINT_DB, LOGS_DIR
+from log_utils import setup_logger
+
+logger = setup_logger("01_find_game_intro", LOGS_DIR)
 
 
 def find_game_intro_timestamp(audio_file: str) -> float | None:
@@ -37,12 +40,12 @@ def find_game_intro_timestamp(audio_file: str) -> float | None:
         audio_file,
     ]
 
-    print(f"Scanning for game intro in: {os.path.basename(audio_file)}")
+    logger.info(f"Scanning for game intro in: {os.path.basename(audio_file)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = result.stdout + result.stderr
 
     if result.returncode != 0 and "Matched" not in output:
-        print("audfprint output:\n", output)
+        logger.info(f"audfprint output:\n{output}")
         return None
 
     return _parse_timestamp(output, audio_file)
@@ -61,7 +64,7 @@ def _parse_timestamp(output: str, audio_file: str) -> float | None:
 
     We try multiple patterns to be robust across audfprint versions.
     """
-    print("audfprint output:\n", output)
+    logger.info(f"audfprint output:\n{output}")
 
     # Pattern 1: "start  45.23" (--find-time-range flag output)
     m = re.search(r'start\s+([\d.]+)', output)
@@ -84,22 +87,22 @@ def _parse_timestamp(output: str, audio_file: str) -> float | None:
         return float(m.group(1))
 
     if "Matched" in output:
-        print("WARNING: Match found but could not parse timestamp from output.")
-        print("Please inspect the output above and update _parse_timestamp() accordingly.")
+        logger.warning("Match found but could not parse timestamp from output.")
+        logger.warning("Please inspect the output above and update _parse_timestamp() accordingly.")
     else:
-        print("No match found for game intro in this episode.")
+        logger.info("No match found for game intro in this episode.")
 
     return None
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(f"Usage: python {sys.argv[0]} <episode_audio_file>")
+        logger.info(f"Usage: python {sys.argv[0]} <episode_audio_file>")
         sys.exit(1)
 
     ts = find_game_intro_timestamp(sys.argv[1])
     if ts is not None:
-        print(f"\nGame intro found at: {ts:.2f} seconds ({ts/60:.1f} minutes)")
+        logger.info(f"\nGame intro found at: {ts:.2f} seconds ({ts/60:.1f} minutes)")
     else:
-        print("\nGame intro not found.")
+        logger.info("\nGame intro not found.")
         sys.exit(1)
