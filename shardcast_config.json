@@ -1,0 +1,13 @@
+{
+  "if_directory_empty": "download_last",
+  "download_delay" : 17,
+  "podcasts": [
+    {
+      "name": "Shardcast",
+      "rss_link": "http://feeds.soundcloud.com/users/soundcloud:users:102123174/sounds.rss",
+      "path": "./source_audio/",
+	  "if_directory_empty" : "download_all_from_feed",
+	  "download_delay" : 17
+    }
+  ]
+}
