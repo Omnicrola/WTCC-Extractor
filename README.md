@@ -2,21 +2,21 @@
 
 This is an automated pipeline I created for extracting structured game data from episodes of the 17th Shard podcast, wherein they often play a game called *Who's That Cosmere Character?* (WTCC).  The end goal being to produce data in a consistent format that can be used to make a simple web game that other fans can interact with.
 
-Given one or more podcast audio files, it locates the WTCC game segment by detecting the intro "game intro", transcribes the segment with speaker diarization, and uses a local LLM to pull out the clues, answer, and submitter for each round — saving everything to a SQLite database. Episodes with multiple rounds played back-to-back are handled automatically.
+Given one or more podcast audio files, it locates the WTCC game segment by detecting the intro "game intro", transcribes the segment with speaker diarization, and uses a local LLM model to pull out the clues, answer, and submitter for each round — saving everything to a SQLite database. Episodes with multiple rounds played back-to-back are handled automatically.
 
-This is one of the first projects I've done that heavily used AI. Claude Opus 4.6 was used to conduct research on different ways of extracting the information I wanted and processing it. Claude Code was used to create and refine the python code that actually uses it.  The project is ment to run on Windows, hence why there's some Powershell scripting. I may try to containerize it later just for ease of portability, but we'll see.
+This is one of the first projects I've done that heavily used AI. Claude Opus 4.6 was used to conduct research on different ways of extracting the information I wanted and processing it. Claude Code was used to create and refine the python code that actually runs the pipeline. It was a fun challenge getting the local LLM to process the transcripts and extract consistent data. There are all sorts of nuances to work through, including people talking over each other, incomplete sentences, the players giving a bunch of wrong answers and speculating in between guesses, side banter, and lots of disfluencies.
 
 
-## How it works
+## Processing Pipeline Overivew
 
 ```
-Episode audio (.mp3 / .wav)
+Download audio from Soundcloud (.mp3 / .wav)
         │
         ▼
 [Step 1] audfprint — locate WTCC game intro timestamp
         │
         ▼
-[Step 2] ffmpeg — extract game segment
+[Step 2] ffmpeg — extract game segment (if it's not found we skip this step)
         │
         ▼
 [Step 3] WhisperX + pyannote — transcribe with speaker diarization
@@ -25,7 +25,7 @@ Episode audio (.mp3 / .wav)
 [Step 4] LM Studio (local model) — extract clues, answer, submitter per round
         │
         ▼
-     SQLite DB (episodes / game_rounds / clues tables)
+Save to SQLite DB (episodes / game_rounds / clues tables)
 ```
 
 ## Prerequisites
@@ -91,6 +91,16 @@ python scripts/setup_fingerprint.py
 ```
 
 ## Usage
+**Download podcast audio:**
+```bash
+./download_podcasts.bat
+```
+or run the install and invocation yourself:
+```bash
+py -m pip install podcast_downloader
+
+python -m podcast_downloader --config [CONFIG_FILE]
+```
 
 **Process a single episode:**
 ```bash
@@ -106,8 +116,6 @@ python run_pipeline.py --all
 ```bash
 python run_pipeline.py source_audio/episode.mp3 --force
 ```
-
-Place your podcast episode files (`.mp3`, `.wav`, `.m4a`, `.ogg`) in the `source_audio/` directory before running.
 
 ## Running individual steps
 
@@ -139,35 +147,6 @@ Intermediate files are written to:
 - `segments/` — extracted game audio (WAV)
 - `transcripts/` — WhisperX JSON transcripts with speaker labels and word-level timestamps
 
-## Project structure
-
-```
-WTCC-Extractor/
-├── run_pipeline.py          # Main orchestrator — run this
-├── config/
-│   ├── __init__.py          # Your local config (gitignored)
-│   └── __init__.py.example  # Template — copy and edit
-├── scripts/
-│   ├── setup_db.py              # (one-time) Initialize SQLite schema
-│   ├── setup_fingerprint.py     # (one-time) Build audfprint game intro database
-│   ├── 01_find_game_intro.py    # Locate game intro in episode audio
-│   ├── 02_extract_segment.py    # Extract game segment with ffmpeg
-│   ├── 03_transcribe.py         # WhisperX transcription + diarization
-│   └── 04_extract_game_data.py  # LLM-based structured extraction
-├── audfprint/               # Audio fingerprinting library (submodule)
-├── resources/
-│   ├── wtcc_intro_fingerprint.wav  # Game intro reference audio
-│   ├── wtcc_fingerprint.db  # audfprint database (generated)
-│   └── speaker_profiles/    # Optional: named speaker audio clips for identification
-│       └── Name_clip.wav    #   Filename prefix (before first '_') becomes the speaker label
-├── output/
-│   └── wtcc.db              # SQLite output database (generated)
-├── source_audio/            # Put your episode files here
-├── segments/                # Extracted game segments (generated)
-├── transcripts/             # WhisperX JSON transcripts (generated)
-└── examples/                # Sample transcript and expected output
-```
-
 ## Configuration reference
 
 All settings live in `config/__init__.py`:
@@ -188,12 +167,5 @@ All settings live in `config/__init__.py`:
 ### Speaker identification
 
 To have speaker labels replaced with real names in transcripts, add audio clips to `resources/speaker_profiles/`. The filename prefix (everything before the first `_`) becomes the speaker's name:
-
-```
-resources/speaker_profiles/
-    Eric_01.wav
-    Eric_interview.wav
-    Brandon_clip1.wav
-```
 
 Multiple clips per person are averaged into a single reference embedding. The folder can be left empty to skip identification entirely.

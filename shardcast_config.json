@@ -6,6 +6,7 @@
       "name": "Shardcast",
       "rss_link": "http://feeds.soundcloud.com/users/soundcloud:users:102123174/sounds.rss",
       "path": "./source_audio/",
+      "file_name_template": "[%publish_date%] %file_name%.%file_extension%",
 	  "if_directory_empty" : "download_all_from_feed",
 	  "download_delay" : 17
     }
