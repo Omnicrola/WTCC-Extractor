@@ -91,7 +91,8 @@ def update_episode(episode_id: int, **kwargs):
         conn.execute(f"UPDATE episodes SET {sets} WHERE id = ?", values)
 
 
-def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: str):
+def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: str,
+                    round_timestamps: list):
     """Store extracted game data into game_rounds and clues tables."""
     with get_conn() as conn:
         # Remove any previous results for this episode (idempotent re-runs)
@@ -110,11 +111,13 @@ def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: 
                 segments = transcript_data.get("segments", [])
                 raw_transcript = " ".join(s.get("text", "") for s in segments)
 
-        for round_data in game_data.rounds:
+        for round_data, round_ts in zip(game_data.rounds, round_timestamps):
             cur = conn.execute(
-                """INSERT INTO game_rounds (episode_id, answer, submitted_by, raw_json, raw_transcript)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (episode_id, round_data.answer, round_data.submitted_by, raw_json, raw_transcript)
+                """INSERT INTO game_rounds
+                   (episode_id, answer, submitted_by, raw_json, raw_transcript, round_start_timestamp)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (episode_id, round_data.answer, round_data.submitted_by,
+                 raw_json, raw_transcript, round_ts)
             )
             round_id = cur.lastrowid
 
@@ -165,13 +168,15 @@ def step_transcribe(segment_wav: str) -> str:
     return mod.transcribe_segment(segment_wav)
 
 
-def step_extract_game_data(transcript_json: str):
-    # Register 05_transcribe under a stable name so 06 can find it
+def step_extract_game_data(transcript_json: str, game_intro_offset: float = 0.0):
+    # Register transcribe module under a stable name so extract_game_data can find it
     transcribe_mod = _load_script("03_transcribe.py", "transcribe")
     sys.modules["transcribe_mod"] = transcribe_mod
 
     mod = _load_script("04_extract_game_data.py", "extract_game_data")
-    return mod.extract_game_data(transcript_json)
+    game_data, raw_json = mod.extract_game_data(transcript_json)
+    round_timestamps = mod.find_round_timestamps(transcript_json, game_data.rounds, game_intro_offset)
+    return game_data, raw_json, round_timestamps
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +210,7 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
     episode_id = upsert_episode(abs_path)
 
     try:
+        game_intro_offset = 0.0  # seconds from episode start to segment WAV start
         expected_segment = _expected_segment_path(abs_path)
         if skip_extraction:
             logger.info(f"\n[Step 1+2] Skipping extraction (--skip-extraction) — using full audio file.")
@@ -215,6 +221,13 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
             logger.info(f"  {os.path.basename(expected_segment)}")
             segment_file = expected_segment
             update_episode(episode_id, segment_file=segment_file)
+            # Recover the stored offset so timestamp matching is still accurate
+            with get_conn() as conn:
+                row = conn.execute(
+                    "SELECT game_intro_timestamp FROM episodes WHERE id = ?", (episode_id,)
+                ).fetchone()
+            if row and row[0] is not None:
+                game_intro_offset = row[0]
         else:
             update_episode(episode_id, status="finding_game_intro")
             logger.info("\n[Step 1] Finding game intro timestamp...")
@@ -224,7 +237,9 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
                 update_episode(episode_id, game_intro_found=0)
                 segment_file = abs_path
                 update_episode(episode_id, segment_file=segment_file)
+                # game_intro_offset stays 0.0; timestamps are episode-absolute already
             else:
+                game_intro_offset = timestamp
                 logger.info(f"  Game intro found at {timestamp:.2f}s ({timestamp/60:.1f} min)")
                 update_episode(episode_id, game_intro_timestamp=timestamp)
 
@@ -247,10 +262,10 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
 
         update_episode(episode_id, status="extracting_data")
         logger.info("\n[Step 4] Extracting game data via LM Studio...")
-        game_data, raw_json = step_extract_game_data(transcript_file)
+        game_data, raw_json, round_timestamps = step_extract_game_data(transcript_file, game_intro_offset)
 
         logger.info("\n[Step 5] Storing results in database...")
-        store_game_data(episode_id, game_data, raw_json, transcript_file)
+        store_game_data(episode_id, game_data, raw_json, transcript_file, round_timestamps)
         update_episode(
             episode_id,
             status="done",
@@ -259,8 +274,9 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
 
         logger.info(f"\nDone: {basename}")
         logger.info(f"  Rounds : {len(game_data.rounds)}")
-        for i, r in enumerate(game_data.rounds, 1):
-            logger.info(f"  Round {i}: {r.answer} ({len(r.clues)} clues)")
+        for i, (r, ts) in enumerate(zip(game_data.rounds, round_timestamps), 1):
+            ts_str = f"{ts:.1f}s ({ts/60:.1f} min)" if ts is not None else "not found"
+            logger.info(f"  Round {i}: {r.answer} ({len(r.clues)} clues) @ {ts_str}")
 
     except Exception as e:
         update_episode(episode_id, status=f"error: {e}")

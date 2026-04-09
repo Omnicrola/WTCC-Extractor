@@ -14,6 +14,7 @@ Usage:
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import difflib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -140,6 +141,76 @@ def _merge_rounds(all_rounds: list[WTCCRound]) -> list[WTCCRound]:
         if key not in seen or len(r.clues) > len(seen[key].clues):
             seen[key] = r
     return list(seen.values())
+
+
+def find_round_timestamps(
+    transcript_json_path: str,
+    rounds: list,
+    game_intro_offset: float,
+) -> list:
+    """
+    For each extracted round, find its episode-absolute start timestamp by
+    searching the WhisperX transcript segments.
+
+    Strategy (in order):
+      1. Submitter name — case-insensitive substring search (most reliable;
+         proper nouns survive both WhisperX and LLM cleanup intact)
+      2. First clue text — fuzzy match via SequenceMatcher (fallback when
+         submitter is blank or not found)
+
+    Searches forward through segments so each successive round anchors past
+    the previous one, handling back-to-back rounds correctly.
+
+    game_intro_offset: seconds from episode start to segment WAV start.
+      Pass 0.0 when the full episode was transcribed (no segment extraction).
+
+    Returns a list of floats (episode-absolute seconds), one per round.
+    None entries mean no match was found for that round.
+    """
+    with open(transcript_json_path, "r", encoding="utf-8") as f:
+        transcript = json.load(f)
+
+    # (segment_index, start_seconds, lowercased_text)
+    seg_list = [
+        (i, s.get("start", 0.0), s.get("text", "").strip().lower())
+        for i, s in enumerate(transcript.get("segments", []))
+    ]
+
+    results = []
+    search_from = 0  # advance forward as we find each round
+
+    for round_data in rounds:
+        match_seg_idx = None
+        match_time = None
+
+        # --- Primary: submitter name substring search ---
+        submitter = (round_data.submitted_by or "").strip().lower()
+        if submitter:
+            for seg_idx, start, text in seg_list[search_from:]:
+                if submitter in text:
+                    match_seg_idx = seg_idx
+                    match_time = start
+                    break
+
+        # --- Fallback: fuzzy match on first clue text ---
+        if match_time is None and round_data.clues:
+            query = round_data.clues[0].strip().lower()
+            best_ratio = 0.0
+            for seg_idx, start, text in seg_list[search_from:]:
+                ratio = difflib.SequenceMatcher(None, query, text).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    if ratio >= 0.45:
+                        match_seg_idx = seg_idx
+                        match_time = start
+
+        if match_seg_idx is not None:
+            search_from = match_seg_idx  # next round must start after this
+            results.append(game_intro_offset + match_time)
+        else:
+            results.append(None)
+
+    return results
 
 
 def _title_from_path(path: str) -> str:
@@ -278,9 +349,10 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
             (audio_file,)
         )
         row = conn.execute(
-            "SELECT id FROM episodes WHERE audio_file = ?", (audio_file,)
+            "SELECT id, game_intro_timestamp FROM episodes WHERE audio_file = ?", (audio_file,)
         ).fetchone()
         episode_id = row[0]
+        game_intro_offset = row[1] or 0.0
 
         # Clear any previous results for this episode
         old_rounds = conn.execute(
@@ -299,11 +371,15 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
                     for s in transcript_data.get("segments", [])
                 )
 
-        for round_data in game_data.rounds:
+        round_timestamps = find_round_timestamps(transcript_abs, game_data.rounds, game_intro_offset)
+
+        for round_data, round_ts in zip(game_data.rounds, round_timestamps):
             cur = conn.execute(
-                """INSERT INTO game_rounds (episode_id, answer, submitted_by, raw_json, raw_transcript)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (episode_id, round_data.answer, round_data.submitted_by, raw_json, raw_transcript)
+                """INSERT INTO game_rounds
+                   (episode_id, answer, submitted_by, raw_json, raw_transcript, round_start_timestamp)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (episode_id, round_data.answer, round_data.submitted_by,
+                 raw_json, raw_transcript, round_ts)
             )
             for i, clue in enumerate(round_data.clues):
                 conn.execute(
@@ -322,7 +398,11 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
              datetime.now(timezone.utc).isoformat(), episode_id)
         )
         conn.commit()
+    conn.close()
 
+    for i, (r, ts) in enumerate(zip(game_data.rounds, round_timestamps), 1):
+        ts_str = f"{ts:.1f}s ({ts/60:.1f} min)" if ts is not None else "not found"
+        logger.info(f"  Round {i} ({r.answer}): episode timestamp = {ts_str}")
     logger.info(f"  Saved to database: {len(game_data.rounds)} round(s) for episode_id={episode_id}")
 
 

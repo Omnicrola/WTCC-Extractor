@@ -35,12 +35,13 @@ def setup_database():
         );
 
         CREATE TABLE IF NOT EXISTS game_rounds (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            episode_id     INTEGER NOT NULL REFERENCES episodes(id),
-            answer         TEXT,
-            submitted_by   TEXT,
-            raw_json       TEXT,
-            raw_transcript TEXT
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            episode_id            INTEGER NOT NULL REFERENCES episodes(id),
+            answer                TEXT,
+            submitted_by          TEXT,
+            raw_json              TEXT,
+            raw_transcript        TEXT,
+            round_start_timestamp REAL
         );
 
         CREATE TABLE IF NOT EXISTS clues (
@@ -55,6 +56,7 @@ def setup_database():
     for migration in [
         "ALTER TABLE episodes ADD COLUMN all_speakers_identified INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE episodes ADD COLUMN game_intro_found        INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE game_rounds ADD COLUMN round_start_timestamp REAL",
     ]:
         try:
             cur.execute(migration)
