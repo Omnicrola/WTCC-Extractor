@@ -374,12 +374,22 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
         round_timestamps = find_round_timestamps(transcript_abs, game_data.rounds, game_intro_offset)
 
         for round_data, round_ts in zip(game_data.rounds, round_timestamps):
+            conn.execute(
+                "INSERT OR IGNORE INTO characters (canonical_name) VALUES (?)",
+                (round_data.answer,)
+            )
+            char_row = conn.execute(
+                "SELECT id FROM characters WHERE canonical_name = ?",
+                (round_data.answer,)
+            ).fetchone()
+            character_id = char_row[0] if char_row else None
+
             cur = conn.execute(
                 """INSERT INTO game_rounds
-                   (episode_id, answer, submitted_by, raw_json, raw_transcript, round_start_timestamp)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (episode_id, transcribed_answer, submitted_by, raw_json, raw_transcript, round_start_timestamp, character_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (episode_id, round_data.answer, round_data.submitted_by,
-                 raw_json, raw_transcript, round_ts)
+                 raw_json, raw_transcript, round_ts, character_id)
             )
             for i, clue in enumerate(round_data.clues):
                 conn.execute(
@@ -402,7 +412,7 @@ def _save_to_db(transcript_path: str, game_data: WTCCGameData, raw_json: str):
 
     for i, (r, ts) in enumerate(zip(game_data.rounds, round_timestamps), 1):
         ts_str = f"{ts:.1f}s ({ts/60:.1f} min)" if ts is not None else "not found"
-        logger.info(f"  Round {i} ({r.answer}): episode timestamp = {ts_str}")
+        logger.info(f"  Round {i} ({r.answer!r}): episode timestamp = {ts_str}")
     logger.info(f"  Saved to database: {len(game_data.rounds)} round(s) for episode_id={episode_id}")
 
 

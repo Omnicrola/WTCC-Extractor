@@ -21,8 +21,8 @@ segments/
 transcripts/
 reports/
 
-# Database files
-output/wtcc.db
+# Generated output files
+output/
 resources/wtcc_fingerprint.db
 
 # Log files

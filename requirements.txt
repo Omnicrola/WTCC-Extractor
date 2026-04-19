@@ -13,6 +13,9 @@ torchaudio==2.8.0+cu126
 openai
 pydantic>=2.0
 
+# Fuzzy string matching for phonetic deduplication (05_data_cleanup.py)
+rapidfuzz
+
 # ffmpeg must be installed separately and on PATH:
 #   Windows: winget install ffmpeg   OR   choco install ffmpeg
 #   macOS:   brew install ffmpeg

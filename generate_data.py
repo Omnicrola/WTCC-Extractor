@@ -55,16 +55,18 @@ cur.execute("""
 episodes_rows = cur.fetchall()
 
 # Fetch rounds with row-number as round_order
+# Use canonical_name from characters when available, fall back to transcribed_answer
 cur.execute("""
     SELECT
-        id,
-        episode_id,
-        ROW_NUMBER() OVER (PARTITION BY episode_id ORDER BY id) AS round_order,
-        answer AS character_answer,
-        submitted_by
-    FROM game_rounds
-    WHERE id IN ({})
-    ORDER BY episode_id, id
+        gr.id,
+        gr.episode_id,
+        ROW_NUMBER() OVER (PARTITION BY gr.episode_id ORDER BY gr.id) AS round_order,
+        COALESCE(c.canonical_name, gr.transcribed_answer) AS character_answer,
+        gr.submitted_by
+    FROM game_rounds gr
+    LEFT JOIN characters c ON c.id = gr.character_id
+    WHERE gr.id IN ({})
+    ORDER BY gr.episode_id, gr.id
 """.format(','.join(str(i) for i in valid_round_ids)))
 rounds_by_episode = {}
 for row in cur.fetchall():
