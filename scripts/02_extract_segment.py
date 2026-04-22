@@ -1,6 +1,6 @@
 """
 Step 2: Extract the game segment from the full episode using ffmpeg.
-Cuts from the game intro timestamp for SEGMENT_WINDOW_SECONDS.
+Cuts from the game intro timestamp to the end of the file.
 
 Usage:
     python scripts/02_extract_segment.py <episode_audio_file> <game_intro_timestamp_seconds>
@@ -10,15 +10,15 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import subprocess
-from config import SEGMENTS_DIR, SEGMENT_WINDOW_SECONDS, LOGS_DIR
+from config import SEGMENTS_DIR, LOGS_DIR
 from log_utils import setup_logger
 
 logger = setup_logger("02_extract_segment", LOGS_DIR)
 
 
-def extract_segment(audio_file: str, start_seconds: float, duration: int = SEGMENT_WINDOW_SECONDS) -> str:
+def extract_segment(audio_file: str, start_seconds: float) -> str:
     """
-    Extract a segment from audio_file starting at start_seconds for duration seconds.
+    Extract from start_seconds to the end of audio_file.
     Saves to SEGMENTS_DIR and returns the output file path.
     """
     os.makedirs(SEGMENTS_DIR, exist_ok=True)
@@ -30,14 +30,13 @@ def extract_segment(audio_file: str, start_seconds: float, duration: int = SEGME
         "ffmpeg", "-y",
         "-ss", str(start_seconds),
         "-i", audio_file,
-        "-t", str(duration),
         "-ar", "16000",      # 16 kHz — optimal for Whisper
         "-ac", "1",          # mono
         "-c:a", "pcm_s16le", # uncompressed WAV for WhisperX
         out_file,
     ]
 
-    logger.info(f"Extracting segment: {start_seconds:.1f}s + {duration//60} min from {os.path.basename(audio_file)}")
+    logger.info(f"Extracting segment: {start_seconds:.1f}s to end of {os.path.basename(audio_file)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:

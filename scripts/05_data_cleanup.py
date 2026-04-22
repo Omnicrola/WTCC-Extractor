@@ -181,6 +181,11 @@ def _direct_wiki_matches(names: list[str], cache_conn: sqlite3.Connection) -> li
     return matched
 
 
+def _normalize_query(name: str) -> str:
+    """Collapse doubled consonants to help JaroWinkler match transcription artifacts."""
+    return re.sub(r'([bcdfghjklmnpqrstvwxyz])\1+', r'\1', name, flags=re.IGNORECASE)
+
+
 def _phonetic_candidates(
     query_names: list[str],
     coppermind_names: list[str],
@@ -188,12 +193,21 @@ def _phonetic_candidates(
 ) -> list[str]:
     """
     Score every Coppermind character name against each query using Jaro-Winkler.
-    Return the top_n unique names with the highest score across all queries.
+    Each query is also run in a doubled-consonant-collapsed form to catch
+    transcription artifacts like "Helloran" → "Heloran" matching "Helaran".
+    Returns the top_n unique names with the highest score across all queries.
     """
-    best: dict[str, float] = {}
-    for query in query_names:
-        if not query.strip():
+    expanded: list[str] = []
+    for q in query_names:
+        if not q.strip():
             continue
+        expanded.append(q)
+        normalized = _normalize_query(q)
+        if normalized.lower() != q.lower():
+            expanded.append(normalized)
+
+    best: dict[str, float] = {}
+    for query in expanded:
         hits = fuzz_process.extract(
             query,
             coppermind_names,
@@ -252,8 +266,10 @@ the strongest signal. A candidate that sounds like the transcribed name is very 
 likely correct even if the spelling differs.
 - The clues are intentionally cryptic and vague (they make the game hard), but \
 use them as supporting evidence when the phonetic signal is ambiguous.
-- Your answer must be the exact string from the candidates list, or "UNKNOWN" \
-if you are confident none of them match.\
+- If no candidate is phonetically close to the transcribed name AND the clues do \
+not clearly point to one, return "UNKNOWN". Do NOT construct reasoning to justify \
+a candidate that does not sound like the transcribed name — a wrong answer is \
+worse than UNKNOWN.\
 """
 
 

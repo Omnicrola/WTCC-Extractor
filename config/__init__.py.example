@@ -28,15 +28,30 @@ LOGS_DIR       = os.path.join(BASE_DIR, "output", "logs")
 # and set this to the full path of audfprint.py
 AUDFPRINT_PY = os.path.join(BASE_DIR, "audfprint", "audfprint.py")
 
-# --- Audio extraction ---
-# How many seconds after the game intro to extract (game is unlikely >30 min)
-SEGMENT_WINDOW_SECONDS = 1800  # 30 minutes
-
 # --- WhisperX ---
 WHISPER_MODEL        = "large-v2"
 WHISPER_DEVICE       = "cuda"     # "cuda" or "cpu"
 WHISPER_COMPUTE_TYPE = "float16"  # "float16" (GPU) or "int8" (CPU)
 WHISPER_BATCH_SIZE   = 16
+
+# Initial prompt fed to Whisper to bias decoding toward Cosmere proper nouns.
+# Whisper treats this as pseudo-preceding audio context; listing character names
+# here significantly reduces mis-transcription of fantasy proper nouns.
+# Names are ordered by Coppermind wiki page length (proxy for prominence).
+WHISPER_INITIAL_PROMPT = (
+    "Shallan Davar, Kaladin, Dalinar Kholin, Adolin Kholin, Hoid, Szeth, "
+    "Waxillium Ladrian, Navani Kholin, Pattern, Sylphrena, Taravangian, Tindwyl, "
+    "Jasnah Kholin, Rlain, Nale, Renarin Kholin, Lift, Wayne, Sigzil, "
+    "Vin, Meridas Amaram, Spensa Nightshade, Moash, Sazed, Teft, "
+    "Kelsier, Kimmalyn, Rayse, Elhokar Kholin, Lirin, Elend Venture, "
+    "Odium, Jorgen Weight, Lunamor, Stormfather, Kalak, Nightblood, Timbre, "
+    "Lezian, Gavilar Kholin, Autonomy, Talenel, Ishar, Torol Sadeas, "
+    "Ba-Ado-Mishram, Mraize, Jezrien, Preservation, Venli, Sibling, Vasher, Spook, "
+    "Lopen, Ruin, Honor, Raboniel, Hrathen, Steris Harms, Rysn Ftori, "
+    "Marsh, Tress, Rashek, Wan ShaiLu, Shalash, Harmony, "
+    "Hesina, Ialai Sadeas, Susebron, Raoden, Marasi Colms, Ati, Bavadin."
+)
+
 
 # Unknown speaker clips are saved here by the identify_speakers.py utility
 UNKNOWN_SPEAKERS_DIR = os.path.join(BASE_DIR, "output", "unknown_speakers")

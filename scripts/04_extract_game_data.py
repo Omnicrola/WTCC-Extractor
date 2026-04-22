@@ -75,54 +75,80 @@ IMPORTANT: Do not invent or guess data. If a field is not present in the transcr
 If only one round is present, return a list with a single entry."""
 
 
-# --- Few-shot example loaded from files ---
-# Transcript : examples/526735692-17thshard-frost-and-dragons_TRANSCRIPT.txt
-# Expected   : examples/526735692-17thshard-frost-and-dragons_expected_output.json
+# --- Few-shot examples loaded from files ---
+# Each multishot-example-NN.txt file contains one round.
+# Format within each file:
+#   INPUT TRANSCRIPT :
+#   <transcript text>
+#
+#   EXPECTED OUTPUT:
+#   <json>
 
-def _load_few_shot_example() -> str:
+def _load_few_shot_examples() -> str:
     examples_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
-    transcript_path = os.path.join(examples_dir, "526735692-17thshard-frost-and-dragons_TRANSCRIPT.txt")
-    expected_path   = os.path.join(examples_dir, "526735692-17thshard-frost-and-dragons_expected_output.json")
 
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        transcript_text = f.read().strip()
-    with open(expected_path, "r", encoding="utf-8") as f:
-        expected_data = json.load(f)
-
-    # Strip metadata fields — the LLM only outputs rounds
-    expected_data.pop("episode_title", None)
-    expected_data.pop("release_date", None)
-    expected_text = json.dumps(expected_data, indent=2)
-
-    return (
-        "--- EXAMPLE ---\n\n"
-        f"Input transcript:\n{transcript_text}\n\n"
-        f"Expected output:\n{expected_text}\n\n"
-        "--- END EXAMPLE ---"
+    paths = sorted(
+        os.path.join(examples_dir, f)
+        for f in os.listdir(examples_dir)
+        if f.startswith("multishot-example-") and f.endswith(".txt")
     )
 
-FEW_SHOT_EXAMPLE = _load_few_shot_example()
+    if not paths:
+        logger.warning("No few-shot examples found in examples/ — proceeding without them.")
+        return ""
+
+    blocks = []
+    for path in paths:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        blocks.append(f"--- EXAMPLE ---\n\n{content}\n\n--- END EXAMPLE ---")
+
+    logger.info(f"Loaded {len(blocks)} few-shot example(s) from examples/")
+    return "\n\n".join(blocks)
+
+FEW_SHOT_EXAMPLES = _load_few_shot_examples()
 
 # --- Chunking ---
 # Transcripts can be very long; chunking keeps each LLM call manageable.
 # Overlap ensures rounds that straddle a chunk boundary are still captured.
-CHUNK_LINES   = 250  # lines per chunk
-OVERLAP_LINES = 60   # lines of overlap between consecutive chunks (must cover a full round)
+# Token count is approximated as len(text) // 4 (standard ~4 chars/token for English).
+CHUNK_TOKENS   = 3000  # target tokens per chunk
+OVERLAP_TOKENS = 450   # overlap tokens between consecutive chunks (15%)
+
+
+def _estimate_tokens(text: str) -> int:
+    return len(text) // 4
 
 
 def _chunk_plain_text(plain_text: str) -> list[str]:
-    """Split a transcript into overlapping line-based chunks."""
+    """Split a transcript into overlapping token-based chunks.
+
+    Lines are accumulated until the chunk reaches CHUNK_TOKENS, then the next
+    chunk rewinds by OVERLAP_TOKENS worth of lines so that rounds straddling a
+    boundary are captured by both sides.
+    """
     lines = [l for l in plain_text.split("\n") if l.strip()]
-    if len(lines) <= CHUNK_LINES:
+    if _estimate_tokens(plain_text) <= CHUNK_TOKENS:
         return [plain_text]
-    chunks = []
+
+    chunks: list[str] = []
     start = 0
     while start < len(lines):
-        end = min(start + CHUNK_LINES, len(lines))
+        token_count = 0
+        end = start
+        while end < len(lines) and token_count < CHUNK_TOKENS:
+            token_count += _estimate_tokens(lines[end]) + 1  # +1 for newline
+            end += 1
         chunks.append("\n".join(lines[start:end]))
-        if end == len(lines):
+        if end >= len(lines):
             break
-        start = end - OVERLAP_LINES
+        # Rewind by OVERLAP_TOKENS worth of lines for the next chunk
+        overlap_tokens = 0
+        rewind = end
+        while rewind > start + 1 and overlap_tokens < OVERLAP_TOKENS:
+            rewind -= 1
+            overlap_tokens += _estimate_tokens(lines[rewind]) + 1
+        start = rewind
     return chunks
 
 
@@ -269,7 +295,7 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
         raise ValueError("Transcript is empty — nothing to extract.")
 
     chunks = _chunk_plain_text(plain_text)
-    logger.info(f"  Transcript: {len(plain_text):,} chars, {len(chunks)} chunk(s)")
+    logger.info(f"  Transcript: {len(plain_text):,} chars (~{_estimate_tokens(plain_text):,} tokens), {len(chunks)} chunk(s)")
 
     from openai import OpenAI
     client = OpenAI(base_url=LMSTUDIO_BASE_URL, api_key=LMSTUDIO_API_KEY, timeout=300)
@@ -285,10 +311,13 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
     for i, chunk in enumerate(chunks, 1):
         logger.info(f"  Chunk {i}/{len(chunks)} ({len(chunk):,} chars)...")
         user_message = (
-            f"{FEW_SHOT_EXAMPLE}\n\n"
-            f"Now extract from this transcript:\n\n"
-            f"{chunk}"
-        )
+            f"{FEW_SHOT_EXAMPLES}\n\n" if FEW_SHOT_EXAMPLES else ""
+        ) + f"Now extract from this transcript:\n\n{chunk}"
+
+        chunk_log = os.path.join(LOGS_DIR, f"chunk_{i:02d}_of_{len(chunks)}.txt")
+        with open(chunk_log, "w", encoding="utf-8") as f:
+            f.write(chunk)
+
         response = client.chat.completions.create(
             model=model_id,
             messages=[
@@ -303,6 +332,7 @@ def extract_game_data(transcript_json_path: str) -> tuple[WTCCGameData, str]:
                 },
             },
             temperature=0,
+            max_tokens=1200,
             extra_body={"reasoning_effort": "none"},  # disable thinking tokens for structured extraction
         )
         chunk_json = response.choices[0].message.content

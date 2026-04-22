@@ -1,0 +1,120 @@
+INPUT TRANSCRIPT : 
+[68:02] Ben: So, this next one was sent in by Rebecca Cortez.
+[68:05] Eric: Oh yeah,
+[68:06] Ben: alright.
+[68:06] Ben: Ooh, okay.
+[68:07] Ben: I wonder if
+[68:07] Evgeni: that's Rebecca
+[68:08] Ben: on
+[68:08] Evgeni: the Coppermind.
+[68:09] Eric: That's just one C, Rebecca?
+[68:11] Ben: Uh, yeah, no, two Cs.
+[68:13] Eric: Oh, okay.
+[68:13] Eric: I know Rebecca Cortez has commented or sent...
+[68:18] Eric: I recognize that.
+[68:19] Ben: Hey, Rebecca.
+[68:20] Ben: How you doing?
+[68:21] Ben: Clue number one.
+[68:22] Ben: This character was going to be stabbed with a knife.
+[68:28] SPEAKER_00: Was going to be
+[68:29] Ben: stabbed.
+[68:29] Ben: Wow.
+[68:30] Ben: That's a great clue.
+[68:31] Ben: I really like that clue.
+[68:34] Eric: Was going to, but
+[68:35] Evgeni: wasn't.
+[68:37] Evgeni: It feels like the kind of thing where we should know who the character is at this point.
+[68:42] Evgeni: Okay, I'm going to go out there.
+[68:44] Ian: I'm going to say Rock.
+[68:48] Ian: Because Shallan stabs that one Horn Eater.
+[68:54] Ian: So he
+[68:56] Eric: was
+[68:59] Ian: going to be because the Vindictimizer was going to
+[69:02] Evgeni: copy.
+[69:04] Evgeni: In the spiritual realm, Horn Eaters are similar enough.
+[69:11] Evgeni: I'm going to guess Elend because he was and did get stabbed with it.
+[69:17] Ben: It's not Elend.
+[69:18] Ben: But yeah, I was thinking that.
+[69:20] Ben: I was like, man, they were going to be stabbed with a knife.
+[69:23] Ben: But then would it also count if they were stabbed?
+[69:25] Ben: It was not Gavilar.
+[69:28] Ben: Who was going to stab Gavilar?
+[69:30] SPEAKER_00: Who wouldn't?
+[69:31] SPEAKER_00: Yeah.
+[69:31] Ben: Oh,
+[69:32] SPEAKER_00: yeah, true.
+[69:34] SPEAKER_00: Yep.
+[69:34] SPEAKER_00: Right.
+[69:34] Ben: Oh,
+[69:36] Evgeni: yeah, that would have been a good guess.
+[69:38] SPEAKER_00: Yeah.
+[69:38] SPEAKER_00: Yeah.
+[69:39] Eric: If it was correct.
+[69:41] Eric: If it was correct.
+[69:42] Eric: Well, yeah, it was.
+[69:44] Eric: Fantastic.
+[69:44] Eric: It was going to be a good guess until Ben said it was
+[69:47] Ben: wrong.
+[69:51] Eric: You know what?
+[69:52] Eric: Let's just go with Menace and get to the next clue.
+[69:54] Eric: It's
+[69:55] Ben: not
+[69:55] Eric: Menace.
+[69:56] Ben: Clue number two.
+[69:57] Ben: This character is on a diet.
+[70:00] Eric: On a diet?
+[70:02] Evgeni: Uh, Sterini's dad.
+[70:05] Evgeni: Evan Teo.
+[70:06] Evgeni: It is
+[70:07] Ben: Evan Teo.
+[70:08] Ben: Hey!
+[70:09] Ben: I mean, that's Ian.
+[70:11] Ian: I was going to say that.
+[70:15] Ian: Hey!
+[70:16] Eric: I think they should both get points.
+[70:17] Eric: Adventio is a
+[70:18] Ian: memorable name.
+[70:19] Ian: You shouldn't have it.
+[70:20] Ian: No,
+[70:20] Eric: I think they should both get points.
+[70:21] Eric: I uniquely identified
+[70:23] Ian: as a character.
+[70:23] Ian: It is a
+[70:24] Eric: unique identifier.
+[70:25] Ian: But, like, that's only when it's, like, a really obscure name.
+[70:28] Ian: We don't have
+[70:29] Eric: concrete rules about that.
+[70:31] Eric: Like,
+[70:31] Ian: you wouldn't say Elend's wife counts for Vin.
+[70:35] Ben: Yeah, yeah.
+[70:36] Ben: I'm giving this one to Ian and only
+[70:38] Eric: Ian.
+[70:38] Eric: No, I'm not.
+[70:40] Eric: Vinny is at least getting a half point.
+[70:42] Eric: I'll make the rules.
+[70:43] SPEAKER_00: I think Evgeny should have had the chance to remember the name, and if he couldn't...
+[70:46] Eric: Yeah, rather than being interrupted.
+[70:48] Eric: Earlier,
+[70:50] Ben: I gave Eric one when he interrupted Ian halfway through saying the word.
+[70:55] Ben: So I'm giving this one to Ian.
+[70:59] Evgeni: Listeners, if you think Ben is an idiot and Ian is an idiot and I've been wronged by those idiots, let us know in the comments.
+[71:06] Evgeni: Look, I will
+[71:07] Eric: write this and give you a half point, Evgeny.
+[71:10] UNKNOWN: Okay.
+[71:11] Ben: Cool.
+[71:12] Ben: So this is going to be the last one, guys.
+  
+ EXPECTED OUTPUT: 
+ {
+  "rounds": [
+    {
+      "submitted_by": "Rebecca Cortez",
+      "answer": "Evan Teo",
+      "clues": [
+        "This character was going to be stabbed with a knife.",
+        "This character is on a diet."
+      ]
+    }
+  ]
+}
+ 

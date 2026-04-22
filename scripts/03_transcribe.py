@@ -14,6 +14,7 @@ Usage:
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import dataclasses
 import json
 import torch
 import numpy as np
@@ -25,6 +26,7 @@ from config import (
     WHISPER_DEVICE,
     WHISPER_COMPUTE_TYPE,
     WHISPER_BATCH_SIZE,
+    WHISPER_INITIAL_PROMPT,
     HF_TOKEN,
     SPEAKER_PROFILES_DIR,
     SPEAKER_SIMILARITY_THRESHOLD,
@@ -186,6 +188,12 @@ def transcribe_segment(segment_wav: str) -> str:
         device,
         compute_type=compute_type,
     )
+
+    # WhisperX's transcribe() doesn't accept initial_prompt directly —
+    # it must be injected into the model's TranscriptionOptions dataclass.
+    if WHISPER_INITIAL_PROMPT:
+        model.options = dataclasses.replace(model.options, initial_prompt=WHISPER_INITIAL_PROMPT)
+        logger.info("  Applied Cosmere initial_prompt to Whisper decoder options.")
 
     logger.info(f"Transcribing: {os.path.basename(segment_wav)}")
     audio = whisperx.load_audio(segment_wav)

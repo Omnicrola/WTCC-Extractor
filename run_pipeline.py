@@ -112,12 +112,22 @@ def store_game_data(episode_id: int, game_data, raw_json: str, transcript_path: 
                 raw_transcript = " ".join(s.get("text", "") for s in segments)
 
         for round_data, round_ts in zip(game_data.rounds, round_timestamps):
+            conn.execute(
+                "INSERT OR IGNORE INTO characters (canonical_name) VALUES (?)",
+                (round_data.answer,)
+            )
+            char_row = conn.execute(
+                "SELECT id FROM characters WHERE canonical_name = ?",
+                (round_data.answer,)
+            ).fetchone()
+            character_id = char_row[0] if char_row else None
+
             cur = conn.execute(
                 """INSERT INTO game_rounds
-                   (episode_id, answer, submitted_by, raw_json, raw_transcript, round_start_timestamp)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (episode_id, transcribed_answer, submitted_by, raw_json, raw_transcript, round_start_timestamp, character_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (episode_id, round_data.answer, round_data.submitted_by,
-                 raw_json, raw_transcript, round_ts)
+                 raw_json, raw_transcript, round_ts, character_id)
             )
             round_id = cur.lastrowid
 
@@ -193,7 +203,8 @@ def _expected_transcript_path(segment_file: str) -> str:
     return os.path.join(TRANSCRIPTS_DIR, f"{base}_transcript.json")
 
 
-def process_episode(audio_file: str, force: bool = False, skip_extraction: bool = False):
+def process_episode(audio_file: str, force: bool = False, skip_extraction: bool = False,
+                    skip_no_intro: bool = False):
     abs_path = os.path.abspath(audio_file)
     basename = os.path.basename(abs_path)
 
@@ -233,8 +244,12 @@ def process_episode(audio_file: str, force: bool = False, skip_extraction: bool 
             logger.info("\n[Step 1] Finding game intro timestamp...")
             timestamp = step_find_game_intro(abs_path)
             if timestamp is None:
-                logger.info(f"  Game intro not found — transcribing full episode.")
                 update_episode(episode_id, game_intro_found=0)
+                if skip_no_intro:
+                    logger.info(f"  Game intro not found — skipping (--skip-no-intro).")
+                    update_episode(episode_id, status="skipped_no_intro")
+                    return
+                logger.info(f"  Game intro not found — transcribing full episode.")
                 segment_file = abs_path
                 update_episode(episode_id, segment_file=segment_file)
                 # game_intro_offset stays 0.0; timestamps are episode-absolute already
@@ -292,6 +307,8 @@ def main():
     parser.add_argument("--skip-extraction", action="store_true",
                         help="Skip game intro detection and segment extraction (single file only); "
                              "requires the segment WAV to already exist in segments/")
+    parser.add_argument("--skip-no-intro", action="store_true",
+                        help="Skip episodes where the game intro fingerprint cannot be found")
     args = parser.parse_args()
 
     if args.skip_extraction and args.all:
@@ -324,7 +341,8 @@ def main():
     errors = []
     for f in sorted(files, key=lambda p: os.path.basename(p).lower()):
         try:
-            process_episode(f, force=args.force, skip_extraction=args.skip_extraction)
+            process_episode(f, force=args.force, skip_extraction=args.skip_extraction,
+                            skip_no_intro=args.skip_no_intro)
         except Exception as e:
             errors.append((f, str(e)))
 

@@ -1,0 +1,110 @@
+INPUT TRANSCRIPT : 
+[44:06] SPEAKER_00: I felt bad saying no.
+[44:07] SPEAKER_00: You got that it's someone that owns Galladon.
+[44:10] SPEAKER_03: I wouldn't give it to me, but I'll
+[44:12] SPEAKER_01: take it.
+[44:13] SPEAKER_01: I haven't
+[44:13] SPEAKER_01: Like after you mentioned Alma, I was like, yeah, there was something there, but like I would not have gotten that.
+[44:19] SPEAKER_00: Cool.
+[44:19] SPEAKER_00: Okay.
+[44:20] SPEAKER_00: So that's Marvin on four, Edie on two, and Jesse on one.
+[44:24] SPEAKER_00: Okay, cool.
+[44:25] SPEAKER_00: And we're on nine.
+[44:28] SPEAKER_00: Right?
+[44:29] SPEAKER_00: Yes.
+[44:30] SPEAKER_00: Good.
+[44:30] SPEAKER_00: Cool.
+[44:31] SPEAKER_00: Excellent.
+[44:31] SPEAKER_00: Which you know what that means.
+[44:34] SPEAKER_00: It's a fun one, Ben's doing something fun.
+[44:38] SPEAKER_00: Okay.
+[44:39] SPEAKER_00: This is not who's that Cosmere location.
+[44:42] SPEAKER_00: This is what is that Cosmere creature.
+[44:47] SPEAKER_00: So these creatures are said to help a point of view character at one point.
+[44:52] SPEAKER_00: Santhid.
+[44:53] SPEAKER_00: It's not a Santhid.
+[44:55] SPEAKER_00: Windspren.
+[44:56] SPEAKER_00: It's not Windspren.
+[44:58] SPEAKER_01: I'm like trying to think of anything non-Roshan.
+[45:02] SPEAKER_01: Just to like not go down that route.
+[45:06] SPEAKER_03: Our said to help gives me the vibes of like a character saying that they helped them, but we don't see it on screen.
+[45:14] SPEAKER_03: And I don't know, because like it could be on screen.
+[45:17] SPEAKER_02: Or like it's a historical thing that people talk about having had happened.
+[45:22] SPEAKER_03: Like that was my first impression, but then I don't know.
+[45:25] SPEAKER_03: The
+[45:25] SPEAKER_00: right shade, yeah.
+[45:28] SPEAKER_00: It's not the right stadium.
+[45:29] SPEAKER_00: And also, I forgot to mention that this was sent in by a few of you, and they did want to clarify that this means non-humanoid races.
+[45:37] SPEAKER_02: Can I clarify, and you might just raffle this, whether that includes Spren?
+[45:43] SPEAKER_02: I
+[45:44] SPEAKER_00: am going to...
+[45:49] SPEAKER_00: All the spread are humanoid, so I would say yes, I would include the spread in that.
+[45:54] SPEAKER_00: Okay.
+[45:55] SPEAKER_00: Yeah.
+[45:56] SPEAKER_00: Cool.
+[45:56] SPEAKER_00: So, clue number two.
+[45:59] SPEAKER_00: This creature is fairly intelligent.
+[46:06] SPEAKER_02: The... Lacerin?
+[46:10] SPEAKER_02: Larkin?
+[46:10] SPEAKER_02: The ancient
+[46:12] SPEAKER_00: ace?
+[46:13] SPEAKER_00: Yeah, not Larkin.
+[46:15] SPEAKER_01: The
+[46:17] SPEAKER_00: Reshi Greatshells, the like... Not the Reshi Greatshells.
+[46:22] SPEAKER_00: I
+[46:22] SPEAKER_01: think is what the big one is called.
+[46:24] SPEAKER_01: That sounds
+[46:26] SPEAKER_00: right.
+[46:26] SPEAKER_00: Yeah, something like
+[46:28] SPEAKER_01: that.
+[46:29] SPEAKER_01: That might be the Reshi King, actually.
+[46:31] SPEAKER_01: Yeah.
+[46:33] SPEAKER_01: Something like that.
+[46:34] SPEAKER_02: Oh, yeah, actually, I think that's the Reshi King.
+[46:37] SPEAKER_02: I think
+[46:37] SPEAKER_01: Reluna or something might be the... Oh, actually,
+[46:40] SPEAKER_02: yeah.
+[46:41] UNKNOWN: Yeah.
+[46:42] SPEAKER_02: It's
+[46:43] SPEAKER_01: something.
+[46:44] SPEAKER_01: Aviar?
+[46:48] SPEAKER_00: It's not Aviar.
+[46:49] SPEAKER_00: That's a good one.
+[46:52] SPEAKER_00: Clue number three.
+[46:53] SPEAKER_00: This creature can be lethal to humans.
+[46:59] SPEAKER_03: Meekers.
+[47:01] SPEAKER_00: It is Meekers!
+[47:04] SPEAKER_00: Well done!
+[47:05] SPEAKER_00: I'm
+[47:05] SPEAKER_03: sticking over
+[47:06] SPEAKER_02: there now that I've thought of them.
+[47:08] SPEAKER_02: Okay, what's a meeker?
+[47:10] SPEAKER_00: A meeker is the rodent kind of bunny hop bunny things that are on Sixth of Dusk that he sometimes uses.
+[47:18] SPEAKER_03: I thought they were kind of like ferrets, I don't know.
+[47:20] SPEAKER_00: Oh, they could be like ferrets.
+[47:21] SPEAKER_00: In my head, they hop.
+[47:22] SPEAKER_00: Like, you know, they might not, but they're like rodents.
+[47:25] SPEAKER_00: But yeah, they have a rudimentary... Clue number four was their fairy, and clue number five is they have a rudimentary form of telepathy, because Sixth uses them to...
+[47:35] SPEAKER_00: I can't remember what he uses them for.
+[47:36] SPEAKER_00: He uses them for something, to, like, find something or warn him of something.
+[47:40] SPEAKER_00: But yes, so, thank you, Fuwa, and that is... You're catching up.
+[47:44] SPEAKER_00: That's three points to Edie, four to Marvin, and one to Jesse.
+[47:48] SPEAKER_00: Ooh.
+  
+ EXPECTED OUTPUT: 
+ {
+  "rounds": [
+    {
+      "submitted_by": "Ben",
+      "answer": "Meekers",
+      "clues": [
+        "These creatures are said to help a point o view character at one point.",
+        "This creature is fairly intelligent.",
+        "This creature can be lethal to humans.",
+        "their fairy",
+        "They have a rudimentary form of telepathy"
+      ]
+    }
+  ]
+}
+ 

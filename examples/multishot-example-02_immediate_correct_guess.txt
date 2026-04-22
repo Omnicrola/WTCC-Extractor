@@ -1,0 +1,58 @@
+INPUT TRANSCRIPT : 
+[35:13] Ben: So, Storm, next one, Storm Blessed Dolphin, sent in.
+[35:17] Ben: Clue number one, this character is not Rosharan.
+[35:21] Ben: Thank you.
+[35:22] Eric: Menace.
+[35:23] Eric: Screw you guys.
+[35:23] Eric: It is Menace.
+[35:24] Eric: Excellent.
+[35:27] Ben: It really is.
+[35:28] SPEAKER_00: What?
+[35:29] Ben: What?
+[35:30] UNKNOWN: What?
+[35:35] Ben: So I would like to
+[35:36] Ian: point out I'm the only one without a point at
+[35:38] Eric: this point.
+[35:42] Eric: Thanks guys!
+[35:43] Eric: You know what?
+[35:44] Eric: Everything of your sass from the last one
+[35:49] Eric: Totally justified.
+[35:50] Eric: I admit I completely forgot about Menace.
+[35:52] Eric: Like, that was a meme from months ago.
+[35:55] Eric: I don't actually listen to the jingle, but you guys reminded me and it got me a point.
+[36:00] Eric: So,
+[36:00] Ben: great.
+[36:01] Ben: You're all good.
+[36:02] Ben: I feel
+[36:03] Ian: like Menace lives on in all of our hearts, so we will never forget him.
+[36:08] Eric: I want to imagine that there are listeners here who are like, who the hell's Menace?
+[36:13] Eric: Menace, in case you forgot.
+[36:16] Eric: Which he's very forgettable.
+[36:19] Evgeni: He is an invisible character in the first Star Wars prelude.
+[36:23] Eric: No, shut up, shut up.
+[36:25] Eric: Stop derailing this.
+[36:26] Eric: Get us back on the rails.
+[36:27] Eric: No, he was an old ska that Kelsier talked to in the prologue and then Kelsier talked to him once later in the caves.
+[36:36] Ben: Yeah, the other clues were this character was part of the Rebellion, this character was described as bald with leathery skin, this character appears on screen exactly twice, and this character has interacted with Kelsia.
+[36:49] Ben: See, I
+[36:50] Eric: like bald with leathery skin as like a clue one because I think we would all think of Ardence if it was like, oh, bald, Ardence, easy.
+[37:02] Ben: Cool.
+[37:03] Ben: Scores on the door so far are Evgeny has two, Josh has one, Eric has one, you guys have, you guys suck have one, and Ian has zero.
+
+EXPECTED OUTPUT: 
+ {
+  "rounds": [
+    {
+      "submitted_by": "Storm Blessed Dolphin",
+      "answer": "Menace",
+      "clues": [
+        "This character is not Rosharan.",
+        "This character was part of the Rebellion.",
+        "This character was described as bald with leathery skin.",
+        "This character appears on screen exactly twice.",
+        "This character has interacted with Kelsier."
+      ]
+    }
+  ]
+}
+ 
